@@ -1,4 +1,3 @@
 {
-  "TestFramework": "Pytest",
-  "Interpreter": "CondaEnv|CondaEnv|GDP_env"
+  "TestFramework": "Pytest"
 }
