@@ -1,7 +1,4 @@
-﻿from ast import Num
-from re import T
-from tkinter import N
-from scipy.integrate import odeint, solve_ivp
+﻿from scipy.integrate import solve_ivp
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
