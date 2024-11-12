@@ -291,7 +291,7 @@ AOP = np.deg2rad(0)
 mu = 398600 # Earth gravitational param
 tau = np.sqrt(a**3 * 4 * np.pi**2 / mu) # orbital period
 n = 2*np.pi / tau # mean motion
-t = np.int(2*tau); # time for to dock
+t = int(2*tau); # time for to dock
 ts = np.linspace(0,t,t+1)
 t_span = (0, t+1)
 
