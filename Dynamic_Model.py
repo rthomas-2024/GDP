@@ -536,7 +536,7 @@ def animate_3d_trajectories(data, framerate=30, ANIMATE=True):
 #                   INPUTS                    #
 ###############################################
 InertMat = np.array([[1,0,0], [0,1,0],[0,0,1]]) #inertial matrix
-w0 = np.array([0.3,1,0]) #initial angular velocity
+w0 = np.array([0.03,0.01,0]) #initial angular velocity
 theta0 = np.array([30,15,10]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in body frame
@@ -545,8 +545,8 @@ def T_ext_func(t): #define the thrust over time in body frame
    T3 = 0
    return np.array([T1, T2, T3])
 
-tspan = np.array([0, 120]) #spans one minute (start and stop)
-dt = 0.01 #timestep in seconds
+tspan = np.array([0, 15*60]) #spans one minute (start and stop)
+dt = 1 #timestep in seconds
 
 triangleInequality(InertMat) #checks that the object exists
 theta0 = theta0 * 2*np.pi/360 #convert attitude to radians
@@ -561,9 +561,6 @@ AOP = np.deg2rad(0)
 mu = 398600 # Earth gravitational param
 tau = np.sqrt(a**3 * 4 * np.pi**2 / mu) # orbital period
 n = 2*np.pi / tau # mean motion
-t = int(2*tau); # time for to dock
-ts = np.linspace(0,t,t+1)
-t_span = (0, t+1)
 
 rT, vT = sv_from_coe([a, e, RAAN, I, AOP, f], mu) # state vector of target sc, initially
 
@@ -576,7 +573,7 @@ x0 = 0
 y0 = 0
 z0 = 0
 dx0 = 0
-dy0 = 0.01
+dy0 = 1
 dz0 = 0
 f_x = lambda t: -2*n*dy0  # Define external force as a function of time
 
@@ -586,7 +583,7 @@ ICs_ECI_T = [rT[0], rT[1], rT[2], vT[0], vT[1], vT[2]]
 
 
 ###############################################
-# FIND ANGULAR VELO AND QUATERNIONS OVER TIME #
+#                 PROCESSING                  #
 ###############################################
 t_eval = np.arange(tspan[0], tspan[1]+dt, dt) #when to store state matrix
 q0 = DCMtoQuaternion(eulerToDCM(theta0)) #get intial quaternion
@@ -619,29 +616,28 @@ T2s = [T_ext_func(t)[1] for t in t_eval]
 T3s = [T_ext_func(t)[2] for t in t_eval]
 
 #TRAJECORY SOLVING
-sol_LVLH = solve_ivp(Hill_eqns, t_span, ICs_LVLH_C, t_eval=ts, method='RK45',rtol=1e-10) # Solve the system of differential equations
-sol_ECI_T = solve_ivp(TwoBP, t_span, ICs_ECI_T, t_eval=ts, method='RK45',rtol=1e-10) # Solve the system of differential equations
+sol_LVLH = solve_ivp(Hill_eqns, tspan, ICs_LVLH_C, t_eval=t_eval, method='RK45',rtol=1e-10) # Solve the system of differential equations
+sol_ECI_T = solve_ivp(TwoBP, tspan, ICs_ECI_T, t_eval=t_eval, method='RK45',rtol=1e-10) # Solve the system of differential equations
 
 r_LVLH_C = np.array([sol_LVLH.y[0], sol_LVLH.y[1], sol_LVLH.y[2]])
 v_LVLH_C = np.array([sol_LVLH.y[3], sol_LVLH.y[4], sol_LVLH.y[5]])
 r_ECI_T = np.array([sol_ECI_T.y[0], sol_ECI_T.y[1], sol_ECI_T.y[2]])
 v_ECI_T = np.array([sol_ECI_T.y[3], sol_ECI_T.y[4], sol_ECI_T.y[5]])
 
-
 r_ECI_C = np.zeros(r_LVLH_C.shape)
 v_ECI_C = np.zeros(r_LVLH_C.shape)
 ii = 0
-for t in ts:
+for t in t_eval:
     r_ECI_Cii, v_ECI_Cii = LVLH2ECI(r_LVLH_C[:,ii], v_LVLH_C[:,ii], r_ECI_T[:,ii], v_ECI_T[:,ii])
     r_ECI_C[:,ii] = (r_ECI_Cii/1000 + r_ECI_T[:,ii]) # all in km now
     v_ECI_C[:,ii] = (v_ECI_Cii/1000 + v_ECI_T[:,ii])
     ii = ii + 1
 
-print(r_ECI_C)
 
 
-
-#PLOTTING
+###############################################
+#                  PLOTTING                   #
+###############################################
 fig1, axs = plt.subplots(2, 2, figsize=(15,10))
 ax1 = axs[0,1] #w
 ax2 = axs[1,0] #q
@@ -691,27 +687,24 @@ plt.show()
 
 
 
-###############################################
-#               CUBE PLOTTING                 #
-###############################################
+#CUBE PLOTTING
 fig2 = plt.figure(figsize = (10, 10))
 ax = plt.axes(projection = '3d')
 
-
-length = 1
+length = 4
 
 for i in range(len(t_eval)):
     ax.clear()
-    ax.set_xlim(-2, 2)
-    ax.set_ylim(-2, 2)
-    ax.set_zlim(-2, 2)
+    ax.set_xlim(-20, 20)
+    ax.set_ylim(-20, 20)
+    ax.set_zlim(-20, 20)
     ax.set_xlabel('x')
     ax.set_xlabel('y')
     ax.set_zlabel('z')
     ax.set_title('Cube Plot')
     ax.set_aspect('equal')
       
-    centroid = 
+    centroid = np.array([r_LVLH_C[0,i], r_LVLH_C[1,i], r_LVLH_C[2,i]])
     vert = getVertices(centroid, length, qs[:,i])
     plotCube(vert)
     ax.plot3D(centroid[0], centroid[1], centroid[2], marker=".", markersize=10, color="g")
