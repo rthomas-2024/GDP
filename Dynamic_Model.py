@@ -694,30 +694,31 @@ plt.show()
 ###############################################
 #               CUBE PLOTTING                 #
 ###############################################
-# fig2 = plt.figure(figsize = (10, 10))
-# ax = plt.axes(projection = '3d')
+fig2 = plt.figure(figsize = (10, 10))
+ax = plt.axes(projection = '3d')
 
-# centroid = np.array([0.5,0.5,0.5])
-# length = 1
 
-# for i in range(len(t_eval)):
-#     ax.clear()
-#     ax.set_xlim(-2, 2)
-#     ax.set_ylim(-2, 2)
-#     ax.set_zlim(-2, 2)
-#     ax.set_xlabel('x')
-#     ax.set_xlabel('y')
-#     ax.set_zlabel('z')
-#     ax.set_title('Cube Plot')
-#     ax.set_aspect('equal')
+length = 1
 
-#     vert = getVertices(centroid, length, qs[:,i])
-#     plotCube(vert)
-#     ax.plot3D(centroid[0], centroid[1], centroid[2], marker=".", markersize=10, color="g")
+for i in range(len(t_eval)):
+    ax.clear()
+    ax.set_xlim(-2, 2)
+    ax.set_ylim(-2, 2)
+    ax.set_zlim(-2, 2)
+    ax.set_xlabel('x')
+    ax.set_xlabel('y')
+    ax.set_zlabel('z')
+    ax.set_title('Cube Plot')
+    ax.set_aspect('equal')
+      
+    centroid = 
+    vert = getVertices(centroid, length, qs[:,i])
+    plotCube(vert)
+    ax.plot3D(centroid[0], centroid[1], centroid[2], marker=".", markersize=10, color="g")
 
-#     plt.pause(dt)
+    plt.pause(dt)
 
-# plt.show()
+plt.show()
 
 
 #### --------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -775,4 +776,4 @@ data = {
     'LVLH': (sol_LVLH.y[0], sol_LVLH.y[1], sol_LVLH.y[2]),
     'ECI': (r_ECI_C[0], r_ECI_C[1], r_ECI_C[2], sol_ECI_T.y[0], sol_ECI_T.y[1], sol_ECI_T.y[2])
 }
-animate_3d_trajectories(data, framerate=200, ANIMATE=False)
+animate_3d_trajectories(data, framerate=200, ANIMATE=True)
