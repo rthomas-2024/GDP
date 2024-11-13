@@ -310,7 +310,6 @@ def plotTraj(xCWs, yCWs, zCWs, Name, colour, axi, Marker=False):
 def Hill_eqns(t, u):
     # Unpack the variables
     x, y, z, dx, dy, dz = u
-    print(t)
     # Define the equations based on the image
     ddx = 2 * n * dy + 3 * n**2 * x + f_x(t)
     ddy = -2 * n * dx + f_y(t)
@@ -536,7 +535,7 @@ def animate_3d_trajectories(data, framerate=30, ANIMATE=True):
 #                   INPUTS                    #
 ###############################################
 InertMat = np.array([[1,0,0], [0,1,0],[0,0,1]]) #inertial matrix
-w0 = np.array([0.03,0.01,0]) #initial angular velocity
+w0 = np.array([0.003,0.001,0]) #initial angular velocity
 theta0 = np.array([30,15,10]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in body frame
@@ -546,7 +545,7 @@ def T_ext_func(t): #define the thrust over time in body frame
    return np.array([T1, T2, T3])
 
 tspan = np.array([0, 15*60]) #spans one minute (start and stop)
-dt = 1 #timestep in seconds
+dt = 5 #timestep in seconds
 
 triangleInequality(InertMat) #checks that the object exists
 theta0 = theta0 * 2*np.pi/360 #convert attitude to radians
@@ -569,13 +568,12 @@ f_y = lambda t: 0  # Define external force as a function of time
 f_z = lambda t: 0  # Define external force as a function of time
 
 # Straight line V-bar approach with constant velocity
-x0 = 0
+x0 = -10
 y0 = 0
 z0 = 0
 dx0 = 0
-dy0 = 1
+dy0 = 0
 dz0 = 0
-f_x = lambda t: -2*n*dy0  # Define external force as a function of time
 
 ICs_LVLH_C = [x0, y0, z0, dx0, dy0, dz0]  # [x0, y0, z0, dx0, dy0, dz0], initial conditions
 ICs_ECI_T = [rT[0], rT[1], rT[2], vT[0], vT[1], vT[2]]
@@ -685,35 +683,6 @@ ax4.legend()
 plt.subplots_adjust(wspace=0.25, hspace=0.3)
 plt.show()
 
-
-
-#CUBE PLOTTING
-fig2 = plt.figure(figsize = (10, 10))
-ax = plt.axes(projection = '3d')
-
-length = 4
-
-for i in range(len(t_eval)):
-    ax.clear()
-    ax.set_xlim(-20, 20)
-    ax.set_ylim(-20, 20)
-    ax.set_zlim(-20, 20)
-    ax.set_xlabel('x')
-    ax.set_xlabel('y')
-    ax.set_zlabel('z')
-    ax.set_title('Cube Plot')
-    ax.set_aspect('equal')
-      
-    centroid = np.array([r_LVLH_C[0,i], r_LVLH_C[1,i], r_LVLH_C[2,i]])
-    vert = getVertices(centroid, length, qs[:,i])
-    plotCube(vert)
-    ax.plot3D(centroid[0], centroid[1], centroid[2], marker=".", markersize=10, color="g")
-
-    plt.pause(dt)
-
-plt.show()
-
-
 #### --------------------------------------------------------------------------------------------------------------------------------------------------------------
 #  TRAJECTORY Plotting
 # #### --------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -745,9 +714,7 @@ ax1.set_title("LVLH Frame, {} orbits".format(round(t/tau,2)))
 plt.grid(True)
 ax1.legend()
 
-
-# #### --------------------------------------------------------------------------------------------------------------------------------------------------------------
-# # Plot in ECI:
+#Plot trajectory in ECI:
 ax2 = fig.add_subplot(1,2,2, projection='3d')
 plotTraj(sol_ECI_T.y[0], sol_ECI_T.y[1], sol_ECI_T.y[2], "Target", 'r', ax2, Marker=True)
 plotTraj(r_ECI_C[0], r_ECI_C[1], r_ECI_C[2], "Chaser", 'g', ax2, Marker=True)
@@ -764,9 +731,34 @@ ax2.set_title("ECI, {} orbits".format(round(t/tau,2)))
 ax2.legend()
 plt.show()
 
-# Animate both plots
-data = {
-    'LVLH': (sol_LVLH.y[0], sol_LVLH.y[1], sol_LVLH.y[2]),
-    'ECI': (r_ECI_C[0], r_ECI_C[1], r_ECI_C[2], sol_ECI_T.y[0], sol_ECI_T.y[1], sol_ECI_T.y[2])
-}
-animate_3d_trajectories(data, framerate=200, ANIMATE=True)
+
+#DYNAMIC PLOTTING
+fig2 = plt.figure(figsize = (10, 10))
+ax = plt.axes(projection = '3d')
+
+axLen = 50 #size of axis
+acc = 50 #accelerates the time for the dynamic plotting
+
+length = 8 #side length of cube
+
+for i in range(len(t_eval)):
+    ax.clear()
+    ax.set_xlim(-axLen, axLen)
+    ax.set_ylim(-axLen, axLen)
+    ax.set_zlim(-axLen, axLen)
+    ax.set_xlabel('x')
+    ax.set_xlabel('y')
+    ax.set_zlabel('z')
+    ax.set_title('Cube Plot')
+    ax.set_aspect('equal')
+    
+    ax.plot3D(r_LVLH_C[0,0:i], r_LVLH_C[1,0:i], r_LVLH_C[2,0:i])
+
+    centroid = np.array([r_LVLH_C[0,i], r_LVLH_C[1,i], r_LVLH_C[2,i]])
+    vert = getVertices(centroid, length, qs[:,i])
+    plotCube(vert)
+    ax.plot3D(centroid[0], centroid[1], centroid[2], marker=".", markersize=10, color="g")
+
+    plt.pause(dt/acc)
+
+plt.show()
