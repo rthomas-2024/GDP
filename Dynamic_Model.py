@@ -651,52 +651,61 @@ for t in t_eval:
 ###############################################
 #                  PLOTTING                   #
 ###############################################
-fig1, axs = plt.subplots(2, 2, figsize=(15,10))
-ax1 = axs[0,1] #w
-ax2 = axs[1,0] #q
-ax3 = axs[1,1] #qErr
-ax4 = axs[0,0] #T
+diagnosticsPlt = True
+matplotlibPlt = False
+pybulletPlt = True
 
-#plot angular velocities
-ax1.set_title('Angular Velocity Variation (Body Frame)')
-ax1.plot(t_eval, omegaVec[0], color = 'b', label='omega_x')
-ax1.plot(t_eval, omegaVec[1], color = 'r', label='omega_y')
-ax1.plot(t_eval, omegaVec[2], color = 'g', label='omega_z')
-ax1.grid()
-ax1.set_xlabel('time (s)')
-ax1.set_ylabel('angular velocity (rad/s)')
-ax1.legend()
+#centroid = np.array([1,0,0])
 
-#plot quaternions
-ax2.set_title('Quaternion Variation')
-ax2.plot(t_eval, qs[0,:], color='b', label='q0')
-ax2.plot(t_eval, qs[1,:], color='r', label='q1')
-ax2.plot(t_eval, qs[2,:], color='g', label='q2')
-ax2.plot(t_eval, qs[3,:], color='m', label='q3')
-ax2.grid()
-ax2.set_xlabel('time (s)')
-ax2.set_ylabel('Quaternions')
-ax2.legend()
+if diagnosticsPlt:
+    #PLOT STATES (DIAGNOSTICS)
+    fig1, axs = plt.subplots(2, 2, figsize=(15,10))
+    ax1 = axs[0,1] #w
+    ax2 = axs[1,0] #q
+    ax3 = axs[1,1] #qErr
+    ax4 = axs[0,0] #T
 
-#plot quaternion error (absolute)
-ax3.set_title('Quaternion Error Variation (Absolute)')
-ax3.plot(t_eval, qErr)
-ax3.grid()
-ax3.set_xlabel("Time (s)")
-ax3.set_ylabel("Quaternion Norm Error (Absolute)")
+    #plot angular velocities
+    ax1.set_title('Angular Velocity Variation (Body Frame)')
+    ax1.plot(t_eval, omegaVec[0], color = 'b', label='omega_x')
+    ax1.plot(t_eval, omegaVec[1], color = 'r', label='omega_y')
+    ax1.plot(t_eval, omegaVec[2], color = 'g', label='omega_z')
+    ax1.grid()
+    ax1.set_xlabel('time (s)')
+    ax1.set_ylabel('angular velocity (rad/s)')
+    ax1.legend()
 
-#plot thrust
-ax4.set_title('Thrust Variation')
-ax4.plot(t_eval, T1s, color='b', label='T1')
-ax4.plot(t_eval, T2s, color='r', label='T2')
-ax4.plot(t_eval, T3s, color='g', label='T3')
-ax4.grid()
-ax4.set_xlabel('Time (s)')
-ax4.set_ylabel('Thrust (N)')
-ax4.legend()
+    #plot quaternions
+    ax2.set_title('Quaternion Variation')
+    ax2.plot(t_eval, qs[0,:], color='b', label='q0')
+    ax2.plot(t_eval, qs[1,:], color='r', label='q1')
+    ax2.plot(t_eval, qs[2,:], color='g', label='q2')
+    ax2.plot(t_eval, qs[3,:], color='m', label='q3')
+    ax2.grid()
+    ax2.set_xlabel('time (s)')
+    ax2.set_ylabel('Quaternions')
+    ax2.legend()
 
-plt.subplots_adjust(wspace=0.25, hspace=0.3)
-plt.show()
+    #plot quaternion error (absolute)
+    ax3.set_title('Quaternion Error Variation (Absolute)')
+    ax3.plot(t_eval, qErr)
+    ax3.grid()
+    ax3.set_xlabel("Time (s)")
+    ax3.set_ylabel("Quaternion Norm Error (Absolute)")
+
+    #plot thrust
+    ax4.set_title('Thrust Variation')
+    ax4.plot(t_eval, T1s, color='b', label='T1')
+    ax4.plot(t_eval, T2s, color='r', label='T2')
+    ax4.plot(t_eval, T3s, color='g', label='T3')
+    ax4.grid()
+    ax4.set_xlabel('Time (s)')
+    ax4.set_ylabel('Thrust (N)')
+    ax4.legend()
+
+    plt.subplots_adjust(wspace=0.25, hspace=0.3)
+    plt.show()
+
 
 #### --------------------------------------------------------------------------------------------------------------------------------------------------------------
 #  TRAJECTORY Plotting
@@ -747,34 +756,48 @@ ax2.legend()
 plt.show()
 
 
-#DYNAMIC PLOTTING
-fig2 = plt.figure(figsize = (10, 10))
-ax = plt.axes(projection = '3d')
+#DYNAMIC PLOTTING (MATPLOTLIB)
+if matplotlibPlt:
+    fig2 = plt.figure(figsize = (10, 10))
+    ax = plt.axes(projection = '3d')
 
-axLen = 20 #size of axis
-acc = 100 #accelerates the time for the dynamic plotting
+    #axLen = 20 #size of axis
+    acc = 1 #accelerates the time for the dynamic plotting
 
-length = 8 #side length of cube
+    length = 8 #side length of cube
 
-for i in range(len(t_eval)):
-    ax.clear()
-    ax.set_xlim(-25, 0)
-    ax.set_ylim(-15, 5)
-    ax.set_zlim(-10, 10)
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
-    ax.set_zlabel('z')
-    ax.set_title('Cube Plot')
-    ax.set_aspect('equal')
-    
-    ax.plot3D(r_LVLH_C[0,0:i], r_LVLH_C[1,0:i], r_LVLH_C[2,0:i])
+    for i in range(len(t_eval)):
+        ax.clear()
+        ax.set_xlim(-25, 0)
+        ax.set_ylim(-15, 5)
+        ax.set_zlim(-10, 10)
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
+        ax.set_title('Cube Plot')
+        ax.set_aspect('equal')
+        
+        #plot the path up to point i
+        ax.plot3D(r_LVLH_C[0,0:i], r_LVLH_C[1,0:i], r_LVLH_C[2,0:i])
 
-    centroid = np.array([r_LVLH_C[0,i], r_LVLH_C[1,i], r_LVLH_C[2,i]])
-    vert = getVertices(centroid, length, qs[:,i])
-    plotCube(vert)
-    ax.plot3D(centroid[0], centroid[1], centroid[2], marker=".", markersize=10, color="g")
+        #plot the cube
+        centroid = np.array([r_LVLH_C[0,i], r_LVLH_C[1,i], r_LVLH_C[2,i]])
+        vert = getVertices(centroid, length, qs[:,i])
+        plotCube(vert)
+        ax.plot3D(centroid[0], centroid[1], centroid[2], marker=".", markersize=10, color="g")
 
-    plt.pause(dt/acc)
+        plt.pause(dt/acc)
 
-plt.show()
+    plt.show()
 
+
+#DYNAMIC PLOTTING (PYBULLET)
+if pybulletPlt:
+    p.connect(p.GUI)
+    p.setGravity(0,0,0)
+
+    chaser = p.loadURDF("Chaser.urdf", basePosition=np.array([0,0,0]))
+
+    for i in range(len(t_eval)):
+        centroid = np.array([r_LVLH_C[0,i], r_LVLH_C[1,i], r_LVLH_C[2,i]])
+        pybulletPlot(centroid, qs[:,i], dt)
