@@ -560,7 +560,7 @@ def T_ext_func(t): #define the thrust over time in body frame
    return np.array([T1, T2, T3])
 
 tspan = np.array([0, 120*60]) #spans one minute (start and stop)
-dt = 5 #timestep in seconds
+dt = 1 #timestep in seconds
 
 triangleInequality(InertMat) #checks that the object exists
 theta0 = theta0 * 2*np.pi/360 #convert attitude to radians
@@ -652,7 +652,7 @@ for t in t_eval:
 #                  PLOTTING                   #
 ###############################################
 diagnosticsPlt = True
-matplotlibPlt = True
+matplotlibPlt = False
 pybulletPlt = True
 acc = 100 #accelerates the time for the dynamic plotting
 
@@ -799,5 +799,17 @@ if pybulletPlt:
     chaser = p.loadURDF("Chaser.urdf", basePosition=np.array([0,0,0]))
 
     for i in range(len(t_eval)):
+        #get the centroid
         centroid = np.array([r_LVLH_C[0,i], r_LVLH_C[1,i], r_LVLH_C[2,i]])
+
+        #plot the new chaser position
         pybulletPlot(centroid, qs[:,i], dt, acc)
+
+        
+        #follow the cube with the camera
+        tracking = True
+        if tracking:
+            p.resetDebugVisualizerCamera(cameraDistance = 15,
+                                         cameraYaw = i/4,
+                                         cameraPitch = -50,
+                                         cameraTargetPosition = centroid)
