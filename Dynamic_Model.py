@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import scipy as sc
 from scipy.linalg import norm
 import sys
+import time
+import pybullet as p
 
 from scipy.integrate import solve_ivp
 import numpy as np
@@ -67,6 +69,16 @@ def quaternionMult(q, b):
                      [q3, -q2, q1, q0]])
 
     return qMat @ b
+def quatToVisQuat(q):
+    #moves the scalar part of the quaternion from the start to the end of the quaternion as this is how it is defined in pybullet
+    q0,q1,q2,q3 = q
+    
+    q[0] = q1
+    q[1] = q2
+    q[2] = q3
+    q[3] = q0
+
+    return q
 
 #TRANSFORMATION FUNCTIONS (ATTITUDE)
 def quaternionToDCM(beta):
@@ -255,6 +267,9 @@ def getAttitudes(theta0, ts, qs):
         thetas[i+1,:] = DCMtoEuler(quaternionToDCM(qs[i+1,:]))
 
     return thetas
+def pybulletPlot(centroidVec, q, dt):
+    p.resetBasePositionAndOrientation(chaser, centroidVec, quatToVisQuat(q))
+    time.sleep(dt)
 
 #TRAJECTORY FUNCTIONS
 def cw (dr0, dv0, t, n):
@@ -544,8 +559,8 @@ def T_ext_func(t): #define the thrust over time in body frame
    T3 = 0
    return np.array([T1, T2, T3])
 
-tspan = np.array([0, 15*60]) #spans one minute (start and stop)
-dt = 5 #timestep in seconds
+tspan = np.array([0, 60]) #spans one minute (start and stop)
+dt = 0.01 #timestep in seconds
 
 triangleInequality(InertMat) #checks that the object exists
 theta0 = theta0 * 2*np.pi/360 #convert attitude to radians
@@ -747,7 +762,7 @@ for i in range(len(t_eval)):
     ax.set_ylim(-15, 5)
     ax.set_zlim(-10, 10)
     ax.set_xlabel('x')
-    ax.set_xlabel('y')
+    ax.set_ylabel('y')
     ax.set_zlabel('z')
     ax.set_title('Cube Plot')
     ax.set_aspect('equal')
