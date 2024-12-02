@@ -736,16 +736,16 @@ plt.show()
 fig2 = plt.figure(figsize = (10, 10))
 ax = plt.axes(projection = '3d')
 
-axLen = 50 #size of axis
-acc = 50 #accelerates the time for the dynamic plotting
+axLen = 20 #size of axis
+acc = 100 #accelerates the time for the dynamic plotting
 
 length = 8 #side length of cube
 
 for i in range(len(t_eval)):
     ax.clear()
-    ax.set_xlim(-axLen, axLen)
-    ax.set_ylim(-axLen, axLen)
-    ax.set_zlim(-axLen, axLen)
+    ax.set_xlim(-25, 0)
+    ax.set_ylim(-15, 5)
+    ax.set_zlim(-10, 10)
     ax.set_xlabel('x')
     ax.set_xlabel('y')
     ax.set_zlabel('z')
