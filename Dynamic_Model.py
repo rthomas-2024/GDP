@@ -267,9 +267,9 @@ def getAttitudes(theta0, ts, qs):
         thetas[i+1,:] = DCMtoEuler(quaternionToDCM(qs[i+1,:]))
 
     return thetas
-def pybulletPlot(centroidVec, q, dt):
+def pybulletPlot(centroidVec, q, dt, acc):
     p.resetBasePositionAndOrientation(chaser, centroidVec, quatToVisQuat(q))
-    time.sleep(dt)
+    time.sleep(dt/acc)
 
 #TRAJECTORY FUNCTIONS
 def cw (dr0, dv0, t, n):
@@ -559,8 +559,8 @@ def T_ext_func(t): #define the thrust over time in body frame
    T3 = 0
    return np.array([T1, T2, T3])
 
-tspan = np.array([0, 60]) #spans one minute (start and stop)
-dt = 0.01 #timestep in seconds
+tspan = np.array([0, 120*60]) #spans one minute (start and stop)
+dt = 5 #timestep in seconds
 
 triangleInequality(InertMat) #checks that the object exists
 theta0 = theta0 * 2*np.pi/360 #convert attitude to radians
@@ -652,8 +652,9 @@ for t in t_eval:
 #                  PLOTTING                   #
 ###############################################
 diagnosticsPlt = True
-matplotlibPlt = False
+matplotlibPlt = True
 pybulletPlt = True
+acc = 100 #accelerates the time for the dynamic plotting
 
 #centroid = np.array([1,0,0])
 
@@ -762,7 +763,6 @@ if matplotlibPlt:
     ax = plt.axes(projection = '3d')
 
     #axLen = 20 #size of axis
-    acc = 1 #accelerates the time for the dynamic plotting
 
     length = 8 #side length of cube
 
@@ -800,4 +800,4 @@ if pybulletPlt:
 
     for i in range(len(t_eval)):
         centroid = np.array([r_LVLH_C[0,i], r_LVLH_C[1,i], r_LVLH_C[2,i]])
-        pybulletPlot(centroid, qs[:,i], dt)
+        pybulletPlot(centroid, qs[:,i], dt, acc)
