@@ -790,7 +790,6 @@ if matplotlibPlt:
 
     plt.show()
 
-
 #DYNAMIC PLOTTING (PYBULLET)
 if pybulletPlt:
     p.connect(p.GUI)
