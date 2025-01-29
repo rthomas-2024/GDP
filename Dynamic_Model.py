@@ -8,6 +8,7 @@ from scipy.linalg import norm
 import sys
 import time
 import pybullet as p
+from scipy.spatial.transform import Rotation as R
 
 from scipy.integrate import solve_ivp
 import numpy as np
@@ -542,16 +543,25 @@ def animate_3d_trajectories(data, framerate=30, ANIMATE=True):
         plt.show()
 
     return np.void
-
-
+def cw_docking_v0(r0, t, n):
+    # this calculates a v0 so that the trajectory docks (reaches r = [0,0,0] at time t)
+    phi_rr = np.array([[4-3*np.cos(n*t), 0, 0],
+                      [6*(np.sin(n*t)-n*t), 1, 0],
+                      [0, 0, np.cos(n*t)]])
+    phi_rv = np.array([[(1/n)*np.sin(n*t), (2/n)*(1-np.cos(n*t)), 0],
+                      [(2/n)*(np.cos(n*t)-1), (1/n)*(4*np.sin(n*t)-3*n*t), 0],
+                      [0, 0, (1/n)*np.sin(n*t)]])
+    v0 = -np.dot(np.linalg.inv(phi_rv), np.dot(phi_rr,r0))
+   
+    return v0
 
 
 ###############################################
 #                   INPUTS                    #
 ###############################################
 InertMat = np.array([[1,0,0], [0,1,0],[0,0,1]]) #inertial matrix
-w0 = np.array([0.003,0.001,0]) #initial angular velocity
-theta0 = np.array([30,15,10]) #initial attitude in degrees (roll, pitch, yaw)
+w0 = np.array([0.001,0.004,0.002]) #initial angular velocity
+theta0 = np.array([0,0,0]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in body frame
    T1 = 0
@@ -559,8 +569,8 @@ def T_ext_func(t): #define the thrust over time in body frame
    T3 = 0
    return np.array([T1, T2, T3])
 
-tspan = np.array([0, 120*60]) #spans one minute (start and stop)
-dt = 1 #timestep in seconds
+tspan = np.array([0, 4*60]) #spans one minute (start and stop)
+dt = 0.5 #timestep in seconds
 
 triangleInequality(InertMat) #checks that the object exists
 theta0 = theta0 * 2*np.pi/360 #convert attitude to radians
@@ -590,6 +600,11 @@ dx0 = 0
 dy0 = 0
 dz0 = 0
 
+v0=cw_docking_v0(np.array([x0,y0,z0]),tspan[1],n) #*3/4 on the tspan so the user can see the docked spacecraft briefly
+dx0=v0[0]
+dy0=v0[1]
+dz0=v0[2]
+
 ICs_LVLH_C = [x0, y0, z0, dx0, dy0, dz0]  # [x0, y0, z0, dx0, dy0, dz0], initial conditions
 ICs_ECI_T = [rT[0], rT[1], rT[2], vT[0], vT[1], vT[2]]
 
@@ -608,13 +623,27 @@ isv = np.zeros([7])
 isv[0:3] = w0
 isv[3:7] = q0
 
-fullSolution = sc.integrate.solve_ivp(EulerEquations, tspan, isv, t_eval = t_eval, args=(T_ext_func,))
+fullSolution = sc.integrate.solve_ivp(EulerEquations, tspan, isv, t_eval = t_eval, args=(T_ext_func,), rtol=1e-10)
 
 #called it full solution because it contains lots of useless information
 #we just want how state vector changes over time
 
 omegaVec = fullSolution.y[0:3, :] #the .y exctracts just the omegas over the tspan
 qs = fullSolution.y[3:7, :]
+
+# FOR DEMONSTRATION ONLY!!!!! ############################
+rolls = np.linspace(-75, 0, len(t_eval))
+pitchs = np.linspace(-180, 0, len(t_eval))
+yaws = np.linspace(-60, 0, len(t_eval))
+
+# Stack Euler angles into a single array (shape: t_eval x 3)
+euler_angles = np.stack((rolls, pitchs, yaws), axis=1)
+
+# Convert Euler angles (degrees) to quaternions
+qs = R.from_euler('xyz', euler_angles, degrees=True).as_quat()
+qs = qs.T
+# DELETE EVERYTHING ABOVE UP TO THE DEMONSTRATION LINE. THIS IS NOT PROPER SPACE DYNAMICS
+
 
 #find the error in the norm of the quaternions from 1
 qErr = np.zeros([len(qs[0,:])])
@@ -654,7 +683,7 @@ for t in t_eval:
 diagnosticsPlt = True
 matplotlibPlt = False
 pybulletPlt = True
-acc = 100 #accelerates the time for the dynamic plotting
+acc = 30 #accelerates the time for the dynamic plotting
 
 #centroid = np.array([1,0,0])
 
@@ -796,6 +825,15 @@ if pybulletPlt:
     p.setGravity(0,0,0)
 
     chaser = p.loadURDF("Chaser.urdf", basePosition=np.array([0,0,0]))
+    target = p.loadURDF("Target.urdf", basePosition=np.array([1.75,0,0]))
+
+    #only if we want the guidance cone to be drawn
+    drawCone = True
+    coneScale = 10
+
+    if drawCone:
+        cone = p.loadURDF("Cone.urdf", basePosition=np.array([0.25,coneScale*-0.4,coneScale*-0.4]), baseOrientation=p.getQuaternionFromEuler([0,-np.pi/2,0]))
+
 
     for i in range(len(t_eval)):
         #get the centroid
@@ -804,11 +842,21 @@ if pybulletPlt:
         #plot the new chaser position
         pybulletPlot(centroid, qs[:,i], dt, acc)
 
-        
         #follow the cube with the camera
         tracking = True
         if tracking:
-            p.resetDebugVisualizerCamera(cameraDistance = 15,
-                                         cameraYaw = i/4,
-                                         cameraPitch = -50,
+            p.resetDebugVisualizerCamera(cameraDistance = 10,
+                                         cameraYaw = i/3+180,
+                                         cameraPitch = -40,
                                          cameraTargetPosition = centroid)
+
+    lastCamAngle = i/3
+
+    #just an arbitary extension of the simulation for visualisation purposes
+    if tracking:
+        for i in range(len(t_eval/2)):
+            time.sleep(dt/acc)
+            p.resetDebugVisualizerCamera(cameraDistance = 10,
+                                            cameraYaw = lastCamAngle+i/3+180,
+                                            cameraPitch = -40,
+                                            cameraTargetPosition = centroid)
