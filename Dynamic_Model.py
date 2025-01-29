@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 import scipy as sc
 from scipy.linalg import norm
 import sys
+import time
+import pybullet as p
+from scipy.spatial.transform import Rotation as R
 
 from scipy.integrate import solve_ivp
 import numpy as np
@@ -67,6 +70,16 @@ def quaternionMult(q, b):
                      [q3, -q2, q1, q0]])
 
     return qMat @ b
+def quatToVisQuat(q):
+    #moves the scalar part of the quaternion from the start to the end of the quaternion as this is how it is defined in pybullet
+    q0,q1,q2,q3 = q
+    
+    q[0] = q1
+    q[1] = q2
+    q[2] = q3
+    q[3] = q0
+
+    return q
 
 #TRANSFORMATION FUNCTIONS (ATTITUDE)
 def quaternionToDCM(beta):
@@ -255,6 +268,9 @@ def getAttitudes(theta0, ts, qs):
         thetas[i+1,:] = DCMtoEuler(quaternionToDCM(qs[i+1,:]))
 
     return thetas
+def pybulletPlot(centroidVec, q, dt, acc):
+    p.resetBasePositionAndOrientation(chaser, centroidVec, quatToVisQuat(q))
+    time.sleep(dt/acc)
 
 #TRAJECTORY FUNCTIONS
 def cw (dr0, dv0, t, n):
@@ -527,16 +543,25 @@ def animate_3d_trajectories(data, framerate=30, ANIMATE=True):
         plt.show()
 
     return np.void
-
-
+def cw_docking_v0(r0, t, n):
+    # this calculates a v0 so that the trajectory docks (reaches r = [0,0,0] at time t)
+    phi_rr = np.array([[4-3*np.cos(n*t), 0, 0],
+                      [6*(np.sin(n*t)-n*t), 1, 0],
+                      [0, 0, np.cos(n*t)]])
+    phi_rv = np.array([[(1/n)*np.sin(n*t), (2/n)*(1-np.cos(n*t)), 0],
+                      [(2/n)*(np.cos(n*t)-1), (1/n)*(4*np.sin(n*t)-3*n*t), 0],
+                      [0, 0, (1/n)*np.sin(n*t)]])
+    v0 = -np.dot(np.linalg.inv(phi_rv), np.dot(phi_rr,r0))
+   
+    return v0
 
 
 ###############################################
 #                   INPUTS                    #
 ###############################################
 InertMat = np.array([[1,0,0], [0,1,0],[0,0,1]]) #inertial matrix
-w0 = np.array([0.003,0.001,0]) #initial angular velocity
-theta0 = np.array([30,15,10]) #initial attitude in degrees (roll, pitch, yaw)
+w0 = np.array([0.001,0.004,0.002]) #initial angular velocity
+theta0 = np.array([0,0,0]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in body frame
    T1 = 0
@@ -544,8 +569,8 @@ def T_ext_func(t): #define the thrust over time in body frame
    T3 = 0
    return np.array([T1, T2, T3])
 
-tspan = np.array([0, 15*60]) #spans one minute (start and stop)
-dt = 5 #timestep in seconds
+tspan = np.array([0, 4*60]) #spans one minute (start and stop)
+dt = 0.5 #timestep in seconds
 
 triangleInequality(InertMat) #checks that the object exists
 theta0 = theta0 * 2*np.pi/360 #convert attitude to radians
@@ -575,6 +600,11 @@ dx0 = 0
 dy0 = 0
 dz0 = 0
 
+v0=cw_docking_v0(np.array([x0,y0,z0]),tspan[1],n) #*3/4 on the tspan so the user can see the docked spacecraft briefly
+dx0=v0[0]
+dy0=v0[1]
+dz0=v0[2]
+
 ICs_LVLH_C = [x0, y0, z0, dx0, dy0, dz0]  # [x0, y0, z0, dx0, dy0, dz0], initial conditions
 ICs_ECI_T = [rT[0], rT[1], rT[2], vT[0], vT[1], vT[2]]
 
@@ -593,13 +623,27 @@ isv = np.zeros([7])
 isv[0:3] = w0
 isv[3:7] = q0
 
-fullSolution = sc.integrate.solve_ivp(EulerEquations, tspan, isv, t_eval = t_eval, args=(T_ext_func,))
+fullSolution = sc.integrate.solve_ivp(EulerEquations, tspan, isv, t_eval = t_eval, args=(T_ext_func,), rtol=1e-10)
 
 #called it full solution because it contains lots of useless information
 #we just want how state vector changes over time
 
 omegaVec = fullSolution.y[0:3, :] #the .y exctracts just the omegas over the tspan
 qs = fullSolution.y[3:7, :]
+
+# FOR DEMONSTRATION ONLY!!!!! ############################
+rolls = np.linspace(-75, 0, len(t_eval))
+pitchs = np.linspace(-180, 0, len(t_eval))
+yaws = np.linspace(-60, 0, len(t_eval))
+
+# Stack Euler angles into a single array (shape: t_eval x 3)
+euler_angles = np.stack((rolls, pitchs, yaws), axis=1)
+
+# Convert Euler angles (degrees) to quaternions
+qs = R.from_euler('xyz', euler_angles, degrees=True).as_quat()
+qs = qs.T
+# DELETE EVERYTHING ABOVE UP TO THE DEMONSTRATION LINE. THIS IS NOT PROPER SPACE DYNAMICS
+
 
 #find the error in the norm of the quaternions from 1
 qErr = np.zeros([len(qs[0,:])])
@@ -636,52 +680,62 @@ for t in t_eval:
 ###############################################
 #                  PLOTTING                   #
 ###############################################
-fig1, axs = plt.subplots(2, 2, figsize=(15,10))
-ax1 = axs[0,1] #w
-ax2 = axs[1,0] #q
-ax3 = axs[1,1] #qErr
-ax4 = axs[0,0] #T
+diagnosticsPlt = True
+matplotlibPlt = False
+pybulletPlt = True
+acc = 30 #accelerates the time for the dynamic plotting
 
-#plot angular velocities
-ax1.set_title('Angular Velocity Variation (Body Frame)')
-ax1.plot(t_eval, omegaVec[0], color = 'b', label='omega_x')
-ax1.plot(t_eval, omegaVec[1], color = 'r', label='omega_y')
-ax1.plot(t_eval, omegaVec[2], color = 'g', label='omega_z')
-ax1.grid()
-ax1.set_xlabel('time (s)')
-ax1.set_ylabel('angular velocity (rad/s)')
-ax1.legend()
+#centroid = np.array([1,0,0])
 
-#plot quaternions
-ax2.set_title('Quaternion Variation')
-ax2.plot(t_eval, qs[0,:], color='b', label='q0')
-ax2.plot(t_eval, qs[1,:], color='r', label='q1')
-ax2.plot(t_eval, qs[2,:], color='g', label='q2')
-ax2.plot(t_eval, qs[3,:], color='m', label='q3')
-ax2.grid()
-ax2.set_xlabel('time (s)')
-ax2.set_ylabel('Quaternions')
-ax2.legend()
+if diagnosticsPlt:
+    #PLOT STATES (DIAGNOSTICS)
+    fig1, axs = plt.subplots(2, 2, figsize=(15,10))
+    ax1 = axs[0,1] #w
+    ax2 = axs[1,0] #q
+    ax3 = axs[1,1] #qErr
+    ax4 = axs[0,0] #T
 
-#plot quaternion error (absolute)
-ax3.set_title('Quaternion Error Variation (Absolute)')
-ax3.plot(t_eval, qErr)
-ax3.grid()
-ax3.set_xlabel("Time (s)")
-ax3.set_ylabel("Quaternion Norm Error (Absolute)")
+    #plot angular velocities
+    ax1.set_title('Angular Velocity Variation (Body Frame)')
+    ax1.plot(t_eval, omegaVec[0], color = 'b', label='omega_x')
+    ax1.plot(t_eval, omegaVec[1], color = 'r', label='omega_y')
+    ax1.plot(t_eval, omegaVec[2], color = 'g', label='omega_z')
+    ax1.grid()
+    ax1.set_xlabel('time (s)')
+    ax1.set_ylabel('angular velocity (rad/s)')
+    ax1.legend()
 
-#plot thrust
-ax4.set_title('Thrust Variation')
-ax4.plot(t_eval, T1s, color='b', label='T1')
-ax4.plot(t_eval, T2s, color='r', label='T2')
-ax4.plot(t_eval, T3s, color='g', label='T3')
-ax4.grid()
-ax4.set_xlabel('Time (s)')
-ax4.set_ylabel('Thrust (N)')
-ax4.legend()
+    #plot quaternions
+    ax2.set_title('Quaternion Variation')
+    ax2.plot(t_eval, qs[0,:], color='b', label='q0')
+    ax2.plot(t_eval, qs[1,:], color='r', label='q1')
+    ax2.plot(t_eval, qs[2,:], color='g', label='q2')
+    ax2.plot(t_eval, qs[3,:], color='m', label='q3')
+    ax2.grid()
+    ax2.set_xlabel('time (s)')
+    ax2.set_ylabel('Quaternions')
+    ax2.legend()
 
-plt.subplots_adjust(wspace=0.25, hspace=0.3)
-plt.show()
+    #plot quaternion error (absolute)
+    ax3.set_title('Quaternion Error Variation (Absolute)')
+    ax3.plot(t_eval, qErr)
+    ax3.grid()
+    ax3.set_xlabel("Time (s)")
+    ax3.set_ylabel("Quaternion Norm Error (Absolute)")
+
+    #plot thrust
+    ax4.set_title('Thrust Variation')
+    ax4.plot(t_eval, T1s, color='b', label='T1')
+    ax4.plot(t_eval, T2s, color='r', label='T2')
+    ax4.plot(t_eval, T3s, color='g', label='T3')
+    ax4.grid()
+    ax4.set_xlabel('Time (s)')
+    ax4.set_ylabel('Thrust (N)')
+    ax4.legend()
+
+    plt.subplots_adjust(wspace=0.25, hspace=0.3)
+    plt.show()
+
 
 #### --------------------------------------------------------------------------------------------------------------------------------------------------------------
 #  TRAJECTORY Plotting
@@ -732,34 +786,77 @@ ax2.legend()
 plt.show()
 
 
-#DYNAMIC PLOTTING
-fig2 = plt.figure(figsize = (10, 10))
-ax = plt.axes(projection = '3d')
+#DYNAMIC PLOTTING (MATPLOTLIB)
+if matplotlibPlt:
+    fig2 = plt.figure(figsize = (10, 10))
+    ax = plt.axes(projection = '3d')
 
-axLen = 50 #size of axis
-acc = 50 #accelerates the time for the dynamic plotting
+    #axLen = 20 #size of axis
 
-length = 8 #side length of cube
+    length = 8 #side length of cube
 
-for i in range(len(t_eval)):
-    ax.clear()
-    ax.set_xlim(-axLen, axLen)
-    ax.set_ylim(-axLen, axLen)
-    ax.set_zlim(-axLen, axLen)
-    ax.set_xlabel('x')
-    ax.set_xlabel('y')
-    ax.set_zlabel('z')
-    ax.set_title('Cube Plot')
-    ax.set_aspect('equal')
-    
-    ax.plot3D(r_LVLH_C[0,0:i], r_LVLH_C[1,0:i], r_LVLH_C[2,0:i])
+    for i in range(len(t_eval)):
+        ax.clear()
+        ax.set_xlim(-25, 0)
+        ax.set_ylim(-15, 5)
+        ax.set_zlim(-10, 10)
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
+        ax.set_title('Cube Plot')
+        ax.set_aspect('equal')
+        
+        #plot the path up to point i
+        ax.plot3D(r_LVLH_C[0,0:i], r_LVLH_C[1,0:i], r_LVLH_C[2,0:i])
 
-    centroid = np.array([r_LVLH_C[0,i], r_LVLH_C[1,i], r_LVLH_C[2,i]])
-    vert = getVertices(centroid, length, qs[:,i])
-    plotCube(vert)
-    ax.plot3D(centroid[0], centroid[1], centroid[2], marker=".", markersize=10, color="g")
+        #plot the cube
+        centroid = np.array([r_LVLH_C[0,i], r_LVLH_C[1,i], r_LVLH_C[2,i]])
+        vert = getVertices(centroid, length, qs[:,i])
+        plotCube(vert)
+        ax.plot3D(centroid[0], centroid[1], centroid[2], marker=".", markersize=10, color="g")
 
-    plt.pause(dt/acc)
+        plt.pause(dt/acc)
 
-plt.show()
+    plt.show()
 
+#DYNAMIC PLOTTING (PYBULLET)
+if pybulletPlt:
+    p.connect(p.GUI)
+    p.setGravity(0,0,0)
+
+    chaser = p.loadURDF("Chaser.urdf", basePosition=np.array([0,0,0]))
+    target = p.loadURDF("Target.urdf", basePosition=np.array([1.75,0,0]))
+
+    #only if we want the guidance cone to be drawn
+    drawCone = True
+    coneScale = 10
+
+    if drawCone:
+        cone = p.loadURDF("Cone.urdf", basePosition=np.array([0.25,coneScale*-0.4,coneScale*-0.4]), baseOrientation=p.getQuaternionFromEuler([0,-np.pi/2,0]))
+
+
+    for i in range(len(t_eval)):
+        #get the centroid
+        centroid = np.array([r_LVLH_C[0,i], r_LVLH_C[1,i], r_LVLH_C[2,i]])
+
+        #plot the new chaser position
+        pybulletPlot(centroid, qs[:,i], dt, acc)
+
+        #follow the cube with the camera
+        tracking = True
+        if tracking:
+            p.resetDebugVisualizerCamera(cameraDistance = 10,
+                                         cameraYaw = i/3+180,
+                                         cameraPitch = -40,
+                                         cameraTargetPosition = centroid)
+
+    lastCamAngle = i/3
+
+    #just an arbitary extension of the simulation for visualisation purposes
+    if tracking:
+        for i in range(len(t_eval/2)):
+            time.sleep(dt/acc)
+            p.resetDebugVisualizerCamera(cameraDistance = 10,
+                                            cameraYaw = lastCamAngle+i/3+180,
+                                            cameraPitch = -40,
+                                            cameraTargetPosition = centroid)
