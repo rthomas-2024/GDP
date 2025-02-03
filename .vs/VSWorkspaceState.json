@@ -1,7 +1,8 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\__pycache__"
   ],
-  "SelectedNode": "\\ErrorOfHillEqns.py",
+  "SelectedNode": "\\Hill_PID_Basic.py",
   "PreviewInSolutionExplorer": false
 }

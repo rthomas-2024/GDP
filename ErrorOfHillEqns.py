@@ -544,19 +544,21 @@ AOP = np.deg2rad(0)
 mu = 398600 # Earth gravitational param
 tau = np.sqrt(a**3 * 4 * np.pi**2 / mu) # orbital period
 n = 2*np.pi / tau # mean motion
-t = int(0.4*tau); # time for to dock
+t = int(0.05*tau); # time for to dock
+# t, dt = 1000, 0.01  # Total time and step size
+# ts = np.arange(0, t, dt)
 ts = np.linspace(0,t,t+1)
 t_span = (0, t+1)
 
 rT_ECI0, vT_ECI0 = sv_from_coe([a, e, RAAN, I, AOP, f], mu) # state vector of target sc, initially
 
-f_x = 0.01e-3 # forces/unit mass to be applied. km/sec^2
+f_x = 10*1e-3 # forces/unit mass to be applied. km/sec^2
 f_y = 0  
 f_z = 0  
 
 # Chaser ICs
-x0 = 0.1
-y0 = 0.1
+x0 = -1.5
+y0 = 0
 z0 = 0
 dx0 = 0
 dy0 = 0
@@ -664,6 +666,7 @@ print(r_ECI_C_hill[:,-1])
 print(r_ECI_C[:,-1])
 print(np.linalg.norm(r_ECI_C_hill[:,-1] - r_ECI_C[:,-1]))
 
+print(r_LVLH_C)
 #### --------------------------------------------------------------------------------------------------------------------------------------------------------------
 # Plotting
 #### --------------------------------------------------------------------------------------------------------------------------------------------------------------

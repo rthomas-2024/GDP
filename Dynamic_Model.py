@@ -206,6 +206,7 @@ def EulerEquations(t, stateVec, T_ext_func):
     #note quaternions used because it creates smooth interpolation for animations. this is called slerp
 
     return stateVecDot
+
 def getVertices(centroid, length, q):
     #returns vertices with centroid and length arguments
     vertArr = np.array([[centroid[0]-0.5*length, centroid[1]-0.5*length, centroid[2]-0.5*length],
@@ -555,6 +556,154 @@ def cw_docking_v0(r0, t, n):
    
     return v0
 
+def Combined_DiffyQ(t, u):
+    # unpack variables
+    xT_ECI, yT_ECI, zT_ECI, dxT_ECI, dyT_ECI, dzT_ECI, x_ECI, y_ECI, z_ECI, dx_ECI, dy_ECI, dz_ECI, x_LVLH, y_LVLH, z_LVLH, dx_LVLH, dy_LVLH, dz_LVLH = u
+    
+    # 2 body accel, Target
+    rT_ECI = np.array([xT_ECI, yT_ECI, zT_ECI])
+    ddxT_ECI = (-mu/(np.linalg.norm(rT_ECI)**3)) * xT_ECI
+    ddyT_ECI = (-mu/(np.linalg.norm(rT_ECI)**3)) * yT_ECI
+    ddzT_ECI = (-mu/(np.linalg.norm(rT_ECI)**3)) * zT_ECI
+    aT_ECI = np.array([ddxT_ECI, ddyT_ECI, ddzT_ECI])
+
+    # sol_rT = solve_ivp(Orbital_DiffyQ, (t, t+1), [xT_ECI, yT_ECI, zT_ECI, dxT_ECI, dyT_ECI, dzT_ECI], t_eval=[t,t+1], method='RK45',rtol=1e-10) # Solve the system of differential equations
+    # rT = np.array([sol_rT.y[0][0], sol_rT.y[1][0], sol_rT.y[2][0]])
+    rT = rT_ECI
+    
+    if 1<t<50:
+        f = np.array([f_x, f_y, f_z]) # km/sec^2
+        f_ECI, IGNORE = LVLH2ECI(rT,np.array([ dxT_ECI, dyT_ECI, dzT_ECI]),f,f)
+        print("FIRING, time =", t)
+    else:
+        f = np.array([0,0,0])
+        f_ECI = np.array([0,0,0])
+        
+    # Hill Eqns, Chaser
+    r_LVLH = np.array([x_LVLH,y_LVLH,z_LVLH])
+    v_LVLH = np.array([dx_LVLH,dy_LVLH,dz_LVLH])
+    ddx_LVLH = 2 * n * dy_LVLH + 3 * n**2 * x_LVLH
+    ddy_LVLH = -2 * n * dx_LVLH 
+    ddz_LVLH = -n**2 * z_LVLH 
+    a_LVLH = np.array([ddx_LVLH, ddy_LVLH, ddz_LVLH])
+    a_LVLH = a_LVLH + f # m/sec^2
+
+    # 2 body acceleration, Chaser
+    r_ECI = np.array([x_ECI, y_ECI, z_ECI])
+    ddx_ECI = (-mu/(np.linalg.norm(r_ECI)**3)) * x_ECI 
+    ddy_ECI = (-mu/(np.linalg.norm(r_ECI)**3)) * y_ECI
+    ddz_ECI = (-mu/(np.linalg.norm(r_ECI)**3)) * z_ECI
+    a_ECI = np.array([ddx_ECI, ddy_ECI, ddz_ECI])
+    a_ECI = a_ECI + f_ECI/1000 # km/sec^2
+    
+    # rmag_ECI = np.linalg.norm(r_ECI)
+    # z2_ECI = z_ECI*z_ECI
+    # tx = (x_ECI/rmag_ECI) * (5 * (z2_ECI/rmag_ECI**2) - 1)
+    # ty = (y_ECI/rmag_ECI) * (5 * (z2_ECI/rmag_ECI**2) - 1)
+    # tz = (z_ECI/rmag_ECI) * (5 * (z2_ECI/rmag_ECI**2) - 3)
+    # a_j2_ECI = (1.5*J2*mu*(R_Earth**2)/(rmag_ECI**4)) * np.array([tx,ty,tz]) # orbital mechanics for engineering students, 4th edition. this was verified against example 10.2 in this textbook
+    # a_ECI = a_ECI + a_j2_ECI
+    # f_ECI = a_j2_ECI*1000 # km --> m !!
+
+   
+    # print(a_LVLH)
+    # # J2
+    # if J2_BOOL == True:
+    #     # Target ECI
+    #     # rmagT_ECI = np.linalg.norm(rT_ECI)
+    #     # z2T_ECI = zT_ECI*zT_ECI
+    #     # tx = (xT_ECI/rmagT_ECI) * (5 * (z2T_ECI/rmagT_ECI**2) - 1)
+    #     # ty = (yT_ECI/rmagT_ECI) * (5 * (z2T_ECI/rmagT_ECI**2) - 1)
+    #     # tz = (zT_ECI/rmagT_ECI) * (5 * (z2T_ECI/rmagT_ECI**2) - 3)
+    #     # aT_j2_ECI = (1.5*J2*mu*(R_Earth**2)/(rmagT_ECI**4)) * np.array([tx,ty,tz]) # orbital mechanics for engineering students, 4th edition. this was verified against example 10.2 in this textbook
+    #     # aT_ECI = aT_ECI + aT_j2_ECI        
+
+    #     # ECI
+    #     rmag_ECI = np.linalg.norm(r_ECI)
+    #     z2_ECI = z_ECI*z_ECI
+    #     tx = (x_ECI/rmag_ECI) * (5 * (z2_ECI/rmag_ECI**2) - 1)
+    #     ty = (y_ECI/rmag_ECI) * (5 * (z2_ECI/rmag_ECI**2) - 1)
+    #     tz = (z_ECI/rmag_ECI) * (5 * (z2_ECI/rmag_ECI**2) - 3)
+    #     a_j2_ECI = (1.5*J2*mu*(R_Earth**2)/(rmag_ECI**4)) * np.array([tx,ty,tz]) # orbital mechanics for engineering students, 4th edition. this was verified against example 10.2 in this textbook
+    #     a_ECI = a_ECI + a_j2_ECI
+        
+    #     # LVLH
+    #     # w = np.array([0,0,n])
+    #     # a_j2_LVLH = a_j2_ECI - ( aT_ECI + np.cross(w, np.cross(w, r_LVLH)) + 2*np.cross(w, v_LVLH) )
+    #     # a_LVLH = a_LVLH + a_j2_LVLH
+
+    #     # trying just a simple rotation matrix ?
+    #     a_j2_LVLH, ignore = ECI2LVLH(rT_ECI, np.array([dxT_ECI,dyT_ECI,dzT_ECI]), a_j2_ECI, a_j2_ECI ) # i THINK this is correct. this matches up with the Cornell video. you can convert external forces by dotting it along the respective unit vectors of the LVLH frame        
+    #     a_LVLH = a_LVLH + a_j2_LVLH
+        
+    return [ dxT_ECI,dyT_ECI,dzT_ECI,aT_ECI[0],aT_ECI[1],aT_ECI[2], dx_ECI,dy_ECI,dz_ECI,a_ECI[0],a_ECI[1],a_ECI[2], dx_LVLH,dy_LVLH,dz_LVLH,a_LVLH[0],a_LVLH[1],a_LVLH[2] ]
+
+def TrajandAtt(t,stateVec,T_ext_func):
+    #I is the full inertial matrix, and omega is an angular velocity vector
+    I11 = InertMat[0,0]
+    I22 = InertMat[1,1]
+    I33 = InertMat[2,2]
+
+    omega = stateVec[0:3]
+    q = stateVec[3:7]
+
+    omega1, omega2, omega3 = omega
+    T1, T2, T3 = T_ext_func(t)
+
+    dw1dt = (T1 - (I33-I22)*omega2*omega3) / I11
+    dw2dt = (T2 - (I11-I33)*omega1*omega3) / I22
+    dw3dt = (T3 - (I22-I11)*omega2*omega1) / I33
+
+    omegaDot = np.array([dw1dt, dw2dt, dw3dt]) #returns the dw/dt full vector
+    qDot = getAmat(omega) @ q
+
+    stateVecDot = np.zeros([25])
+    stateVecDot[0:3] = omegaDot
+    stateVecDot[3:7] = qDot
+
+    #note quaternions used because it creates smooth interpolation for animations. this is called slerp
+
+    ###########################
+    # TRAJECTORY
+    ###########################
+    # unpack variables
+    xT_ECI, yT_ECI, zT_ECI, dxT_ECI, dyT_ECI, dzT_ECI, x_ECI, y_ECI, z_ECI, dx_ECI, dy_ECI, dz_ECI, x_LVLH, y_LVLH, z_LVLH, dx_LVLH, dy_LVLH, dz_LVLH = stateVec[7:26]
+    
+    # 2 body accel, Target
+    rT_ECI = np.array([xT_ECI, yT_ECI, zT_ECI])
+    ddxT_ECI = (-mu/(np.linalg.norm(rT_ECI)**3)) * xT_ECI
+    ddyT_ECI = (-mu/(np.linalg.norm(rT_ECI)**3)) * yT_ECI
+    ddzT_ECI = (-mu/(np.linalg.norm(rT_ECI)**3)) * zT_ECI
+    aT_ECI = np.array([ddxT_ECI, ddyT_ECI, ddzT_ECI])
+
+    rT = rT_ECI
+    
+    if 1<t<50:
+        f = np.array([f_x, f_y, f_z]) # km/sec^2
+        f_ECI, IGNORE = LVLH2ECI(rT,np.array([ dxT_ECI, dyT_ECI, dzT_ECI]),f,f)
+        print("FIRING, time =", t)
+    else:
+        f = np.array([0,0,0])
+        f_ECI = np.array([0,0,0])
+        
+    # Hill Eqns, Chaser
+    ddx_LVLH = 2 * n * dy_LVLH + 3 * n**2 * x_LVLH
+    ddy_LVLH = -2 * n * dx_LVLH 
+    ddz_LVLH = -n**2 * z_LVLH 
+    a_LVLH = np.array([ddx_LVLH, ddy_LVLH, ddz_LVLH])
+    a_LVLH = a_LVLH + f # m/sec^2
+
+    # 2 body acceleration, Chaser
+    r_ECI = np.array([x_ECI, y_ECI, z_ECI])
+    ddx_ECI = (-mu/(np.linalg.norm(r_ECI)**3)) * x_ECI 
+    ddy_ECI = (-mu/(np.linalg.norm(r_ECI)**3)) * y_ECI
+    ddz_ECI = (-mu/(np.linalg.norm(r_ECI)**3)) * z_ECI
+    a_ECI = np.array([ddx_ECI, ddy_ECI, ddz_ECI])
+    a_ECI = a_ECI + f_ECI/1000 # km/sec^2
+    
+    stateVecDot[7:26] = dxT_ECI,dyT_ECI,dzT_ECI,aT_ECI[0],aT_ECI[1],aT_ECI[2], dx_ECI,dy_ECI,dz_ECI,a_ECI[0],a_ECI[1],a_ECI[2], dx_LVLH,dy_LVLH,dz_LVLH,a_LVLH[0],a_LVLH[1],a_LVLH[2]
+        
+    return stateVecDot
 
 ###############################################
 #                   INPUTS                    #
@@ -576,6 +725,8 @@ triangleInequality(InertMat) #checks that the object exists
 theta0 = theta0 * 2*np.pi/360 #convert attitude to radians
 
 #TRAJECTORY INPUTS
+R_Earth = 6378
+# Target ICs
 a = 400 + 6378 # semi major axis
 I = np.deg2rad(0)
 e = 0
@@ -586,28 +737,25 @@ mu = 398600 # Earth gravitational param
 tau = np.sqrt(a**3 * 4 * np.pi**2 / mu) # orbital period
 n = 2*np.pi / tau # mean motion
 
-rT, vT = sv_from_coe([a, e, RAAN, I, AOP, f], mu) # state vector of target sc, initially
+rT_ECI0, vT_ECI0 = sv_from_coe([a, e, RAAN, I, AOP, f], mu) # state vector of target sc, initially
 
-f_x = lambda t: 0  # Define external force as a function of time
-f_y = lambda t: 0  # Define external force as a function of time
-f_z = lambda t: 0  # Define external force as a function of time
+f_x = 10*1e-3 # forces/unit mass to be applied. km/sec^2
+f_y = 0  
+f_z = 0  
 
-# Straight line V-bar approach with constant velocity
-x0 = -10
+# Chaser ICs
+x0 = -1.5
 y0 = 0
 z0 = 0
 dx0 = 0
 dy0 = 0
 dz0 = 0
 
-v0=cw_docking_v0(np.array([x0,y0,z0]),tspan[1],n) #*3/4 on the tspan so the user can see the docked spacecraft briefly
-dx0=v0[0]
-dy0=v0[1]
-dz0=v0[2]
-
-ICs_LVLH_C = [x0, y0, z0, dx0, dy0, dz0]  # [x0, y0, z0, dx0, dy0, dz0], initial conditions
-ICs_ECI_T = [rT[0], rT[1], rT[2], vT[0], vT[1], vT[2]]
-
+rC_LVLH0 = np.array([x0, y0, z0])
+vC_LVLH0 = np.array([dx0, dy0, dz0])
+rCrel_ECI0, vCrel_ECI0 = LVLH2ECI(rT_ECI0, vT_ECI0, rC_LVLH0, vC_LVLH0)
+rC_ECI0 = rCrel_ECI0/1000 + rT_ECI0 # chaser position in ECI, in km
+vC_ECI0 = vCrel_ECI0/1000 + vT_ECI0 # in km/sec
 
 
 ###############################################
@@ -617,19 +765,27 @@ t_eval = np.arange(tspan[0], tspan[1]+dt, dt) #when to store state matrix
 q0 = DCMtoQuaternion(eulerToDCM(theta0)) #get intial quaternion
 
 #initialise the initial state vector (made up of angular velos and quaternions at each timestep)
-isv = np.zeros([7])
+isv = np.zeros([25])
 
 #fill initial state vector
 isv[0:3] = w0
 isv[3:7] = q0
+isv[7:26] = rT_ECI0[0],rT_ECI0[1],rT_ECI0[2],vT_ECI0[0],vT_ECI0[1],vT_ECI0[2], rC_ECI0[0],rC_ECI0[1],rC_ECI0[2],vC_ECI0[0],vC_ECI0[1],vC_ECI0[2], rC_LVLH0[0],rC_LVLH0[1],rC_LVLH0[2],vC_LVLH0[0],vC_LVLH0[1],vC_LVLH0[2]
 
-fullSolution = sc.integrate.solve_ivp(EulerEquations, tspan, isv, t_eval = t_eval, args=(T_ext_func,), rtol=1e-10)
+fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, t_eval = t_eval, args=(T_ext_func,), rtol=1e-10)
 
 #called it full solution because it contains lots of useless information
 #we just want how state vector changes over time
 
 omegaVec = fullSolution.y[0:3, :] #the .y exctracts just the omegas over the tspan
 qs = fullSolution.y[3:7, :]
+
+r_ECI_T = np.array([fullSolution.y[8], fullSolution.y[9], fullSolution.y[10]])
+v_ECI_T = np.array([fullSolution.y[11], fullSolution.y[12], fullSolution.y[13]])
+r_ECI_C = np.array([fullSolution.y[14], fullSolution.y[15], fullSolution.y[16]])
+v_ECI_C = np.array([fullSolution.y[17], fullSolution.y[18], fullSolution.y[19]])
+r_LVLH_C = np.array([fullSolution.y[20], fullSolution.y[21], fullSolution.y[22]])
+v_LVLH_C = np.array([fullSolution.y[23], fullSolution.y[24], fullSolution.y[25]])
 
 # FOR DEMONSTRATION ONLY!!!!! ############################
 rolls = np.linspace(-75, 0, len(t_eval))
@@ -658,23 +814,14 @@ T2s = [T_ext_func(t)[1] for t in t_eval]
 T3s = [T_ext_func(t)[2] for t in t_eval]
 
 #TRAJECORY SOLVING
-sol_LVLH = solve_ivp(Hill_eqns, tspan, ICs_LVLH_C, t_eval=t_eval, method='RK45',rtol=1e-10) # Solve the system of differential equations
-sol_ECI_T = solve_ivp(TwoBP, tspan, ICs_ECI_T, t_eval=t_eval, method='RK45',rtol=1e-10) # Solve the system of differential equations
-
-r_LVLH_C = np.array([sol_LVLH.y[0], sol_LVLH.y[1], sol_LVLH.y[2]])
-v_LVLH_C = np.array([sol_LVLH.y[3], sol_LVLH.y[4], sol_LVLH.y[5]])
-r_ECI_T = np.array([sol_ECI_T.y[0], sol_ECI_T.y[1], sol_ECI_T.y[2]])
-v_ECI_T = np.array([sol_ECI_T.y[3], sol_ECI_T.y[4], sol_ECI_T.y[5]])
-
-r_ECI_C = np.zeros(r_LVLH_C.shape)
-v_ECI_C = np.zeros(r_LVLH_C.shape)
-ii = 0
-for t in t_eval:
-    r_ECI_Cii, v_ECI_Cii = LVLH2ECI(r_LVLH_C[:,ii], v_LVLH_C[:,ii], r_ECI_T[:,ii], v_ECI_T[:,ii])
-    r_ECI_C[:,ii] = (r_ECI_Cii/1000 + r_ECI_T[:,ii]) # all in km now
-    v_ECI_C[:,ii] = (v_ECI_Cii/1000 + v_ECI_T[:,ii])
-    ii = ii + 1
-
+# r_ECI_C = np.zeros(r_LVLH_C.shape)
+# v_ECI_C = np.zeros(r_LVLH_C.shape)
+# ii = 0
+# for t in t_eval:
+#     r_ECI_Cii, v_ECI_Cii = LVLH2ECI(r_LVLH_C[:,ii], v_LVLH_C[:,ii], r_ECI_T[:,ii], v_ECI_T[:,ii])
+#     r_ECI_C[:,ii] = (r_ECI_Cii/1000 + r_ECI_T[:,ii]) # all in km now
+#     v_ECI_C[:,ii] = (v_ECI_Cii/1000 + v_ECI_T[:,ii])
+#     ii = ii + 1
 
 
 ###############################################
@@ -744,7 +891,7 @@ if diagnosticsPlt:
 fig = plt.figure(figsize=(8, 4))
 ax1 = fig.add_subplot(1,2,1)
 ax1.scatter(0, 0, s=100, marker='.', c='k', label='Origin')
-ax1.plot(sol_LVLH.y[0], sol_LVLH.y[1], c='b')
+ax1.plot(r_LVLH_C[0], r_LVLH_C[1], c='b')
 
 ax1.set_xlabel('X (R-bar), m')
 ax1.set_ylabel('Y (V-bar), m')
@@ -770,7 +917,7 @@ ax1.legend()
 
 #Plot trajectory in ECI:
 ax2 = fig.add_subplot(1,2,2, projection='3d')
-plotTraj(sol_ECI_T.y[0], sol_ECI_T.y[1], sol_ECI_T.y[2], "Target", 'r', ax2, Marker=True)
+plotTraj(r_ECI_T[0], r_ECI_T[1], r_ECI_y[2], "Target", 'r', ax2, Marker=True)
 plotTraj(r_ECI_C[0], r_ECI_C[1], r_ECI_C[2], "Chaser", 'g', ax2, Marker=True)
 ax2.scatter(0, 0, 0, s=100, marker='.', c='k', label="Origin")
 
