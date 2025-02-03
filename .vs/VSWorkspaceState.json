@@ -1,7 +1,8 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\__pycache__"
   ],
-  "SelectedNode": "\\Dynamic_Model.py",
+  "SelectedNode": "\\Hill_PID_Basic.py",
   "PreviewInSolutionExplorer": false
 }
