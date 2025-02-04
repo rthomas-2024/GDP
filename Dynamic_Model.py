@@ -180,33 +180,6 @@ def DCMtoEuler(dcm):
     return np.array([roll,pitch,yaw]) #LOOK OVER AND POSSIBLY CHANGE
 
 #CORE FUNCTIONS (ATTITUDE)
-def EulerEquations(t, stateVec, T_ext_func):
-    #I is the full inertial matrix, and omega is an angular velocity vector
-    I11 = InertMat[0,0]
-    I22 = InertMat[1,1]
-    I33 = InertMat[2,2]
-
-    omega = stateVec[0:3]
-    q = stateVec[3:7]
-
-    omega1, omega2, omega3 = omega
-    T1, T2, T3 = T_ext_func(t)
-
-    dw1dt = (T1 - (I33-I22)*omega2*omega3) / I11
-    dw2dt = (T2 - (I11-I33)*omega1*omega3) / I22
-    dw3dt = (T3 - (I22-I11)*omega2*omega1) / I33
-
-    omegaDot = np.array([dw1dt, dw2dt, dw3dt]) #returns the dw/dt full vector
-    qDot = getAmat(omega) @ q
-
-    stateVecDot = np.zeros([7])
-    stateVecDot[0:3] = omegaDot
-    stateVecDot[3:7] = qDot
-
-    #note quaternions used because it creates smooth interpolation for animations. this is called slerp
-
-    return stateVecDot
-
 def getVertices(centroid, length, q):
     #returns vertices with centroid and length arguments
     vertArr = np.array([[centroid[0]-0.5*length, centroid[1]-0.5*length, centroid[2]-0.5*length],
