@@ -675,7 +675,7 @@ def TrajandAtt(t,stateVec,T_ext_func):
     # TRAJECTORY
     ###########################
     # unpack variables
-    xT_ECI, yT_ECI, zT_ECI, dxT_ECI, dyT_ECI, dzT_ECI, x_ECI, y_ECI, z_ECI, dx_ECI, dy_ECI, dz_ECI, x_LVLH, y_LVLH, z_LVLH, dx_LVLH, dy_LVLH, dz_LVLH = stateVec[7:26]
+    xT_ECI, yT_ECI, zT_ECI, dxT_ECI, dyT_ECI, dzT_ECI, x_ECI, y_ECI, z_ECI, dx_ECI, dy_ECI, dz_ECI, x_LVLH, y_LVLH, z_LVLH, dx_LVLH, dy_LVLH, dz_LVLH = stateVec[7:25]
     
     # 2 body accel, Target
     rT_ECI = np.array([xT_ECI, yT_ECI, zT_ECI])
@@ -748,12 +748,12 @@ n = 2*np.pi / tau # mean motion
 
 rT_ECI0, vT_ECI0 = sv_from_coe([a, e, RAAN, I, AOP, f], mu) # state vector of target sc, initially
 
-f_x = 10*1e-3 # forces/unit mass to be applied. km/sec^2
+f_x = 0 # forces/unit mass to be applied. km/sec^2
 f_y = 0  
 f_z = 0  
 
 # Chaser ICs
-x0 = -1.5
+x0 = -10
 y0 = 0
 z0 = 0
 dx0 = 0
@@ -761,7 +761,9 @@ dy0 = 0
 dz0 = 0
 
 rC_LVLH0 = np.array([x0, y0, z0])
-vC_LVLH0 = np.array([dx0, dy0, dz0])
+
+vC_LVLH0 = cw_docking_v0(rC_LVLH0, t, n)
+
 rCrel_ECI0, vCrel_ECI0 = LVLH2ECI(rT_ECI0, vT_ECI0, rC_LVLH0, vC_LVLH0)
 rC_ECI0 = rCrel_ECI0/1000 + rT_ECI0 # chaser position in ECI, in km
 vC_ECI0 = vCrel_ECI0/1000 + vT_ECI0 # in km/sec
