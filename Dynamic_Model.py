@@ -402,18 +402,53 @@ def sv_from_coe(coe, mu):
     
     # Return row vectors
     return r, v
-def LVLH2ECI(r_LVLH, v_LVLH, r_ECI_T, v_ECI_T):
-    ihat = r_ECI_T/np.linalg.norm(r_ECI_T)
-    h_ECI_T = np.cross(r_ECI_T, v_ECI_T)
-    khat = h_ECI_T/np.linalg.norm(h_ECI_T)
-    jhat = np.cross(khat, ihat)
-    
-    T_LVLH2ECI = np.array([ihat.T, jhat.T, khat.T]).T
+def ECI2LVLH(r1_I, v1_I, r12_I, v12_I):
+    # 1: target satellite
+    # 2: chaser satellite
+    # 12: chaser relative to target satellite
+    # I: inertial frame (ECI)
+    # R: rotating frame (LVLH)
+    # this converts a postion and velocity vector from eci to lvlh frame
 
-    r_ECI_C = np.dot(T_LVLH2ECI, r_LVLH)
-    v_ECI_C = np.dot(T_LVLH2ECI, v_LVLH)
+    h1_I = np.cross(r1_I,v1_I)
+    h1_Ihat = h1_I/np.linalg.norm(h1_I)
+    ex_hat = r1_I / np.linalg.norm(r1_I)
+    ez_hat = h1_Ihat
+    ey_hat = np.cross(ez_hat, ex_hat)
+    ex_hat_dot = (1/np.linalg.norm(r1_I)) * (v1_I - np.dot(r1_I/np.linalg.norm(r1_I), v1_I)*r1_I/np.linalg.norm(r1_I))
+    ez_hat_dot = np.array([0,0,0])
+    ey_hat_dot = np.cross(ez_hat,ex_hat_dot) + np.cross(ez_hat_dot,ex_hat)
+    C = np.array([ex_hat,ey_hat,ez_hat])
+    C_dot = np.array([ex_hat_dot, ey_hat_dot, ez_hat_dot])
+
+    r12_R = np.dot(C, r12_I)
+    v12_R = np.dot(C_dot, r12_I) + np.dot(C,v12_I)
     
-    return r_ECI_C, v_ECI_C
+    return r12_R, v12_R # verified, using test case in "degenerate conic page"
+def LVLH2ECI(r1_I, v1_I, r12_R, v12_R):
+    # 1: target satellite
+    # 2: chaser satellite
+    # 12: chaser relative to target satellite
+    # I: inertial frame (ECI)
+    # R: rotating frame (LVLH)
+    # this converts a position and velocity vector from the lvlh to the eci frame
+
+    h1_I = np.cross(r1_I,v1_I)
+    h1_Ihat = h1_I/np.linalg.norm(h1_I)
+    ex_hat = r1_I / np.linalg.norm(r1_I)
+    ez_hat = h1_Ihat
+    ey_hat = np.cross(ez_hat, ex_hat)
+    ex_hat_dot = (1/np.linalg.norm(r1_I)) * (v1_I - np.dot(r1_I/np.linalg.norm(r1_I), v1_I)*r1_I/np.linalg.norm(r1_I))
+    ez_hat_dot = np.array([0,0,0])
+    ey_hat_dot = np.cross(ez_hat,ex_hat_dot) + np.cross(ez_hat_dot,ex_hat)
+    C = np.array([ex_hat,ey_hat,ez_hat])
+    C_dot = np.array([ex_hat_dot, ey_hat_dot, ez_hat_dot])
+
+    r12_I = np.dot(C.T, r12_R)
+    v12_I = np.dot(C_dot.T, r12_R) + np.dot(C.T,v12_R)
+    
+    return r12_I, v12_I # verified, using test case in "degenerate conic page"
+
 def animate_3d_trajectories(data, framerate=30, ANIMATE=True):
     """
     Animate 3D trajectories from raw array data.
@@ -757,6 +792,9 @@ rCrel_ECI0, vCrel_ECI0 = LVLH2ECI(rT_ECI0, vT_ECI0, rC_LVLH0, vC_LVLH0)
 rC_ECI0 = rCrel_ECI0/1000 + rT_ECI0 # chaser position in ECI, in km
 vC_ECI0 = vCrel_ECI0/1000 + vT_ECI0 # in km/sec
 
+print(rT_ECI0, vT_ECI0)
+print(rC_ECI0, vC_ECI0)
+print(rCrel_ECI0, vCrel_ECI0)
 
 ###############################################
 #                 PROCESSING                  #
