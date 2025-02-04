@@ -820,12 +820,12 @@ fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, t_eval = t_eval, a
 omegaVec = fullSolution.y[0:3, :] #the .y exctracts just the omegas over the tspan
 qs = fullSolution.y[3:7, :]
 
-r_ECI_T = np.array([fullSolution.y[8], fullSolution.y[9], fullSolution.y[10]])
-v_ECI_T = np.array([fullSolution.y[11], fullSolution.y[12], fullSolution.y[13]])
-r_ECI_C = np.array([fullSolution.y[14], fullSolution.y[15], fullSolution.y[16]])
-v_ECI_C = np.array([fullSolution.y[17], fullSolution.y[18], fullSolution.y[19]])
-r_LVLH_C = np.array([fullSolution.y[20], fullSolution.y[21], fullSolution.y[22]])
-v_LVLH_C = np.array([fullSolution.y[23], fullSolution.y[24], fullSolution.y[25]])
+r_ECI_T = np.array([fullSolution.y[7], fullSolution.y[8], fullSolution.y[9]])
+v_ECI_T = np.array([fullSolution.y[10], fullSolution.y[11], fullSolution.y[12]])
+r_ECI_C = np.array([fullSolution.y[13], fullSolution.y[14], fullSolution.y[15]])
+v_ECI_C = np.array([fullSolution.y[16], fullSolution.y[17], fullSolution.y[18]])
+r_LVLH_C = np.array([fullSolution.y[19], fullSolution.y[20], fullSolution.y[21]])
+v_LVLH_C = np.array([fullSolution.y[22], fullSolution.y[23], fullSolution.y[24]])
 
 # FOR DEMONSTRATION ONLY!!!!! ############################
 rolls = np.linspace(-75, 0, len(t_eval))
