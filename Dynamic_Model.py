@@ -753,7 +753,8 @@ def T_ext_func(t): #define the thrust over time in body frame
    T3 = 0
    return np.array([T1, T2, T3])
 
-tspan = np.array([0, 4*60]) #spans one minute (start and stop)
+t = 4*60
+tspan = np.array([0, t]) #spans one minute (start and stop)
 dt = 0.5 #timestep in seconds
 
 triangleInequality(InertMat) #checks that the object exists
@@ -791,10 +792,6 @@ vC_LVLH0 = np.array([dx0, dy0, dz0])
 rCrel_ECI0, vCrel_ECI0 = LVLH2ECI(rT_ECI0, vT_ECI0, rC_LVLH0, vC_LVLH0)
 rC_ECI0 = rCrel_ECI0/1000 + rT_ECI0 # chaser position in ECI, in km
 vC_ECI0 = vCrel_ECI0/1000 + vT_ECI0 # in km/sec
-
-print(rT_ECI0, vT_ECI0)
-print(rC_ECI0, vC_ECI0)
-print(rCrel_ECI0, vCrel_ECI0)
 
 ###############################################
 #                 PROCESSING                  #
