@@ -954,7 +954,7 @@ ax1.legend()
 
 #Plot trajectory in ECI:
 ax2 = fig.add_subplot(1,2,2, projection='3d')
-plotTraj(r_ECI_T[0], r_ECI_T[1], r_ECI_y[2], "Target", 'r', ax2, Marker=True)
+plotTraj(r_ECI_T[0], r_ECI_T[1], r_ECI_T[2], "Target", 'r', ax2, Marker=True)
 plotTraj(r_ECI_C[0], r_ECI_C[1], r_ECI_C[2], "Chaser", 'g', ax2, Marker=True)
 ax2.scatter(0, 0, 0, s=100, marker='.', c='k', label="Origin")
 
