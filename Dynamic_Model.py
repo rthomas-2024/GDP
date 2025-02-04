@@ -772,6 +772,8 @@ isv[0:3] = w0
 isv[3:7] = q0
 isv[7:26] = rT_ECI0[0],rT_ECI0[1],rT_ECI0[2],vT_ECI0[0],vT_ECI0[1],vT_ECI0[2], rC_ECI0[0],rC_ECI0[1],rC_ECI0[2],vC_ECI0[0],vC_ECI0[1],vC_ECI0[2], rC_LVLH0[0],rC_LVLH0[1],rC_LVLH0[2],vC_LVLH0[0],vC_LVLH0[1],vC_LVLH0[2]
 
+print(isv)
+
 fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, t_eval = t_eval, args=(T_ext_func,), rtol=1e-10)
 
 #called it full solution because it contains lots of useless information
