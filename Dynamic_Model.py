@@ -88,7 +88,7 @@ def quaternionToDCM(beta):
 
     C11 = b0**2+b1**2-b2**2-b3**2
     C12 = 2*(b1*b2+b0*b3)
-    C13 = 2*(b1*b3-b1*b2)
+    C13 = 2*(b1*b3-b0*b2)
     C21 = 2*(b1*b2-b0*b3)
     C22 = b0**2-b1**2+b2**2-b3**2
     C23 = 2*(b2*b3+b0*b1)
@@ -99,6 +99,7 @@ def quaternionToDCM(beta):
     C = np.array([[C11, C12, C13],
                  [C21, C22, C23],
                  [C31, C32, C33]])
+
     return C
 def DCMtoQuaternion(dcm):
     # Ensure dcm is a 3x3 matrix
@@ -109,75 +110,97 @@ def DCMtoQuaternion(dcm):
     # Initialize quaternion
     q = np.zeros(4)
     
-    # Compute quaternion based on the trace value
-    if trace > 0:
-        s = np.sqrt(trace + 1.0) * 2  # s = 4 * q_w
-        q[0] = 0.25 * s
-        q[1] = (dcm[2, 1] - dcm[1, 2]) / s
-        q[2] = (dcm[0, 2] - dcm[2, 0]) / s
-        q[3] = (dcm[1, 0] - dcm[0, 1]) / s
-    elif (dcm[0, 0] > dcm[1, 1]) and (dcm[0, 0] > dcm[2, 2]):
-        s = np.sqrt(1.0 + dcm[0, 0] - dcm[1, 1] - dcm[2, 2]) * 2  # s = 4 * q_x
-        q[0] = (dcm[2, 1] - dcm[1, 2]) / s
-        q[1] = 0.25 * s
-        q[2] = (dcm[0, 1] + dcm[1, 0]) / s
-        q[3] = (dcm[0, 2] + dcm[2, 0]) / s
-    elif dcm[1, 1] > dcm[2, 2]:
-        s = np.sqrt(1.0 + dcm[1, 1] - dcm[0, 0] - dcm[2, 2]) * 2  # s = 4 * q_y
-        q[0] = (dcm[0, 2] - dcm[2, 0]) / s
-        q[1] = (dcm[0, 1] + dcm[1, 0]) / s
-        q[2] = 0.25 * s
-        q[3] = (dcm[1, 2] + dcm[2, 1]) / s
-    else:
-        s = np.sqrt(1.0 + dcm[2, 2] - dcm[0, 0] - dcm[1, 1]) * 2  # s = 4 * q_z
-        q[0] = (dcm[1, 0] - dcm[0, 1]) / s
-        q[1] = (dcm[0, 2] + dcm[2, 0]) / s
-        q[2] = (dcm[1, 2] + dcm[2, 1]) / s
-        q[3] = 0.25 * s
-    
-    return q  #LOOK OVER AND POSSIBLY CHANGE
+    C11,C12,C13 = dcm[0,0:3]
+    C21,C22,C23 = dcm[1,0:3]
+    C31,C32,C33 = dcm[2,0:3]    
+
+    b0 = 0.5*np.sqrt(trace+1)
+
+    if b0!=0:
+        b1 = (C23-C32)/(4*b0)
+        b2 = (C31-C13)/(4*b0)
+        b3 = (C12-C21)/(4*b0)
+    else: #if singularity, use sheppards algorithm
+        b02 = 0.25*(1+trace)
+        b12 = 0.25*(1+2*C11-trace)
+        b22 = 0.25*(1+2*C22-trace)
+        b32 = 0.25*(1+2*C33-trace)
+
+        bs2 = np.array([b02, b12, b22, b32])
+
+        if b02 == bs2.max():
+            b0 = np.sqrt(b02)
+            b1 = (C23-C32)/(4*b0)
+            b2 = (C31-C13)/(4*b0)
+            b3 = (C12-C21)/(4*b0)
+        elif b12 == bs2.max():
+            b1 = np.sqrt(b12)
+            b0 = (C23-C32)/(4*b1)
+            b2 = (C12+C21)/(4*b1)
+            b3 = (C31+C13)/(4*b1)
+        elif b22 == bs2.max():
+            b2 = np.sqrt(b22)
+            b0 = (C31-C13)/(4*b2)
+            b1 = (C12+C21)/(4*b2)
+            b3 = (C23+C32)/(4*b2)
+        elif b32 == bs2.max():
+            b3 = np.sqrt(b32)
+            b0 = (C12-C21)/(4*b3)
+            b1 = (C31+C13)/(4*b3)
+            b2 = (C23+C32)/(4*b3)
+
+    q = np.array([b0,b1,b2,b3])
+    return q
 def eulerToDCM(rollPitchYaw):
     roll, pitch, yaw = rollPitchYaw
-    # Compute individual rotation matrices
-    R_x = np.array([
-        [1, 0, 0],
+
+    #compute individual rotation matrices
+    #for us, 3-2-1 Euler angles, so yaw-pitch-roll (yaw first, then pitch, then roll)
+    R_x = np.array([[1, 0, 0],
         [0, np.cos(roll), -np.sin(roll)],
-        [0, np.sin(roll), np.cos(roll)]
-    ])
+        [0, np.sin(roll), np.cos(roll)]])
     
-    R_y = np.array([
-        [np.cos(pitch), 0, np.sin(pitch)],
+    R_y = np.array([[np.cos(pitch), 0, np.sin(pitch)],
         [0, 1, 0],
-        [-np.sin(pitch), 0, np.cos(pitch)]
-    ])
+        [-np.sin(pitch), 0, np.cos(pitch)]])
     
-    R_z = np.array([
-        [np.cos(yaw), -np.sin(yaw), 0],
+    R_z = np.array([[np.cos(yaw), -np.sin(yaw), 0],
         [np.sin(yaw), np.cos(yaw), 0],
-        [0, 0, 1]
-    ])
+        [0, 0, 1]])
     
-    # Combined rotation matrix for ZYX order (yaw -> pitch -> roll)
+    #combined DCM for ZYX order (yaw-pitch-roll)
     dcm = R_z @ R_y @ R_x
-    return dcm #LOOK OVER AND POSSIBLY CHANGE
+    #this is the DCM to go FROM body TO inertial
+
+    return dcm #DCM FROM body TO inertial
 def DCMtoEuler(dcm):
+    #function made assuming that it is impossible to get a singularity in a DCM
+    #because all DCM's are derived from quaternions (keep this in mind when checking code, and test)
+    #this is again assuming that the input DCM is the DCM FROM body TO inertial
 
-    if abs(dcm[2, 0]) != 1:
-        # Calculate yaw, pitch, roll angles
-        pitch = -np.arcsin(dcm[2, 0])
-        roll = np.arctan2(dcm[2, 1] / np.cos(pitch), dcm[2, 2] / np.cos(pitch))
-        yaw = np.arctan2(dcm[1, 0] / np.cos(pitch), dcm[0, 0] / np.cos(pitch))
+    # Extract pitch (theta) from -R[2, 0] (R13)
+    pitch = np.arcsin(-dcm[2, 0])  # arcsin gives values in [-pi/2, pi/2]
+    
+    # Handle gimbal lock case (pitch near +/-90 degrees)
+    if np.abs(dcm[2, 0]) > 0.999999:  # Gimbal lock condition
+        yaw = np.arctan2(-dcm[0, 1], dcm[1, 1])  # Combine yaw and roll into one angle
+        roll = 0  # Set roll to 0 in the gimbal lock case
     else:
-        #Gimbal lock occurs, choose yaw = 0
-        yaw = 0
-        if dcm[2, 0] == -1:
-            pitch = np.pi / 2
-            roll = yaw + np.arctan2(dcm[0, 1], dcm[0, 2])
-        else:
-            pitch = -np.pi / 2
-            roll = -yaw + np.arctan2(-dcm[0, 1], -dcm[0, 2])
+        # Compute yaw and roll normally
+        yaw = np.arctan2(dcm[1, 0], dcm[0, 0])  # Yaw (psi) from R21 and R11
+        roll = np.arctan2(dcm[2, 1], dcm[2, 2])  # Roll (phi) from R32 and R33
 
-    return np.array([roll,pitch,yaw]) #LOOK OVER AND POSSIBLY CHANGE
+        # Handle pitch > 90 or < -90
+        if np.cos(pitch) < 0:  # This indicates the pitch is beyond 90 or -90
+            pitch = np.pi - pitch  # Adjust pitch
+            yaw += np.pi  # Adjust yaw
+            roll += np.pi  # Adjust roll
+
+    # Ensure angles remain in the valid range [-180, 180]
+    yaw = (yaw + np.pi) % (2 * np.pi) - np.pi
+    roll = (roll + np.pi) % (2 * np.pi) - np.pi
+
+    return np.array([roll,pitch,yaw])
 
 #CORE FUNCTIONS (ATTITUDE)
 def getVertices(centroid, length, q):
