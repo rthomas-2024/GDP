@@ -4,6 +4,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy as sc
+from scipy import interpolate
 from scipy.linalg import norm
 import sys
 import time
@@ -14,6 +15,8 @@ from scipy.integrate import solve_ivp
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+from scipy.interpolate import interp1d
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 
 
@@ -491,7 +494,6 @@ def LVLH2ECI(r1_I, v1_I, r12_R, v12_R):
     v12_I = np.dot(C_dot.T, r12_R) + np.dot(C.T,v12_R)
     
     return r12_I, v12_I # verified, using test case in "degenerate conic page"
-
 def cw_docking_v0(r0, t, n):
     # this calculates a v0 so that the trajectory docks (reaches r = [0,0,0] at time t)
     phi_rr = np.array([[4-3*np.cos(n*t), 0, 0],
@@ -504,7 +506,183 @@ def cw_docking_v0(r0, t, n):
    
     return v0
 
-def TrajandAtt(t,stateVec,T_ext_func):
+# TRAJECTORY PLANNING FUNCTIONS
+def cw_calc_dv0(dr0, dr1, t, n):
+    phi_rr = np.array([[4-3*np.cos(n*t), 0, 0],
+                       [6*(np.sin(n*t)-n*t), 1, 0],
+                       [0, 0, np.cos(n*t)]])
+    phi_rv = np.array([[(1/n)*np.sin(n*t), (2/n)*(1-np.cos(n*t)), 0],
+                        [(2/n)*(np.cos(n*t)-1), (1/n)*(4*np.sin(n*t)-3*n*t), 0],
+                        [0, 0, (1/n)*np.sin(n*t)]])
+    phi_vr = np.array([[3*n*np.sin(n*t), 0, 0],
+                        [6*n*(np.cos(n*t)-1), 0, 0],
+                        [0, 0, -n*np.sin(n*t)]])
+    phi_vv = np.array([[np.cos(n*t), 2*np.sin(n*t), 0],
+                        [-2*np.sin(n*t), 4*np.cos(n*t)-3, 0],
+                        [0, 0, np.cos(n*t)]])
+    dv0 = np.dot(np.linalg.inv(phi_rv), dr1 - np.dot(phi_rr,dr0))
+    return dv0
+
+def PlanTrajectory(NumWPs, drvec, tvec, dr0, dv0, dt):
+    # this creates a trajectory (position, drs, and time, ts) that follows a set of waypoints (drvec)
+    # each waypoint, drvec(n), takes time t_n-1_n to complete
+    # a container for the position (drs), velocities (dvs), const interval time (ts) and total deltaV is retuned
+    
+    tmax = sum(tvec)
+    ts = np.arange(0,tmax,dt)
+    deltavs = np.zeros([NumWPs,3])
+    Traj = np.zeros([int(tmax/dt + 1),7])
+    dvs = np.zeros([int(tmax/dt + 1),3])
+    dr0_ii = dr0
+    dv0minus_ii = dv0
+    dr_index = 0
+    t_runningTotal = 0
+    for ii in range(0,NumWPs):
+        t_ii = tvec[ii] # journey length for this waypoint
+        dr1_ii = drvec[ii,:] # target waypoint
+        dv0plus_ii = cw_calc_dv0(dr0_ii,dr1_ii,t_ii,n) # required velocity to reach the waypoint
+        deltavs[ii] = dv0plus_ii - dv0minus_ii
+        if ii == NumWPs-1: # last run
+            t_ii = t_ii + dt # to include the very final index
+        for t in np.arange(0,t_ii,dt): # this goes up to t = t_ii - dt
+            dr_t, dv_t = cw(dr0_ii,dv0plus_ii,t,n)
+            Traj[dr_index,0:3] = dr_t
+            Traj[dr_index,3:6] = dv_t
+            Traj[dr_index,6] = t_runningTotal
+            dr_index = dr_index + 1
+            t_runningTotal = t_runningTotal + dt
+        dr_t, dv_t = cw(dr0_ii,dv0plus_ii,t_ii,n)  # the state at t = t_ii, to find dv0_plus (overlap time)
+        dv0minus_ii = dv_t
+        dr0_ii = dr1_ii
+
+    return Traj, deltavs
+
+def is_inside_2d(edges, xp, yp):
+    """Checks if a 2D point (xp, yp) is inside a polygon defined by edges using ray-casting."""
+    cnt = 0
+    for edge in edges:
+        (x1, y1), (x2, y2) = edge
+        if (yp < y1) != (yp < y2) and xp < x1 + ((yp - y1) / (y2 - y1)) * (x2 - x1):
+            cnt += 1
+    return cnt % 2 == 1
+def check_points_in_pyramid(points: np.ndarray, base, apex) -> np.ndarray:
+    """
+    Checks which points are inside a 3D pyramid.
+
+    Parameters:
+    - points (np.ndarray): NumPy array of shape (N, 3) with (x, y, z) points.
+    - base (list): List of (x, y, z) tuples defining the base of the pyramid.
+    - apex (tuple): (x, y, z) coordinates of the pyramid's apex.
+
+    Returns:
+    - NumPy array (N, 4), where the first three columns are (x, y, z),
+      and the fourth column is 1 (inside) or 0 (outside).
+    """
+    if points.shape[1] != 3:
+        raise ValueError("Input points array must have shape (N, 3)")
+
+    # Define 2D projections
+    xy_triangle = [(base[0][0], base[0][1]), (base[1][0], base[1][1]), (apex[0], apex[1])]
+    zx_triangle = [(base[1][0], base[1][2]), (base[2][0], base[2][2]), (apex[0], apex[2])]
+
+    # Convert to edge lists for 2D checking
+    xy_edges = list(zip(xy_triangle, xy_triangle[1:] + [xy_triangle[0]]))
+    zx_edges = list(zip(zx_triangle, zx_triangle[1:] + [zx_triangle[0]]))
+
+    # Initialize results array with an extra column for inside/outside check
+    results = np.zeros((points.shape[0], 4))
+    results[:, :3] = points  # Copy x, y, z values
+
+    # Check each point
+    for i, (x, y, z) in enumerate(points):
+        inside_xy = is_inside_2d(xy_edges, x, y)
+        inside_zx = is_inside_2d(zx_edges, x, z)
+        results[i, 3] = int(inside_xy and inside_zx)  # Store 1 (inside) or 0 (outside)
+
+    return results
+def plot_pyramid_with_points(base, apex, results,ax):
+    """
+    Plots a 3D pyramid and its 2D projections (XY and ZX) with the given points.
+    
+    Parameters:
+    - base: List of (x, y, z) tuples defining the base.
+    - apex: (x, y, z) coordinates of the pyramid's apex.
+    - results: NumPy array containing (x, y, z, inside) points.
+    """
+    # Define pyramid faces
+    faces = [
+        [base[0], base[1], apex],  # Front face
+        [base[1], base[2], apex],  # Right face
+        [base[2], base[3], apex],  # Back face
+        [base[3], base[0], apex],  # Left face
+        base  # Base
+    ]
+
+    # Extract 2D projections
+    xy_triangle = [(base[0][0], base[0][1]), (base[1][0], base[1][1]), (apex[0], apex[1])]
+    zx_triangle = [(base[1][0], base[1][2]), (base[2][0], base[2][2]), (apex[0], apex[2])]
+    
+    # ---- 3D Plot ----
+    ax.add_collection3d(Poly3DCollection(faces, alpha=0.3, edgecolor='k',label="Approach Corridor"))
+
+    # Plot points
+    for x, y, z, inside in results:
+        if inside == False:
+            ax.scatter(x, y, z, '.', c='r', s=5, label = "Outside Approach Corridor")
+
+    fig = plt.figure(figsize=(8, 4))
+    # ---- XY Projection ----
+    ax2 = fig.add_subplot(122)
+    xy_xs, xy_ys = zip(*xy_triangle)
+    ax2.fill(xy_xs, xy_ys, "b", alpha=0.5)
+
+    for x, y, _, inside in results:
+        ax2.scatter(x, y, color='g' if inside else 'r', s=5)
+
+    ax2.set_xlabel("X")
+    ax2.set_ylabel("Y")
+    ax2.set_title("XY Projection")
+    ax2.set_aspect("equal")
+
+    # ---- ZX Projection ----
+    ax3 = fig.add_subplot(222)
+    zx_xs, zx_zs = zip(*zx_triangle)
+    ax3.fill(zx_xs, zx_zs, "r", alpha=0.5)
+
+    for x, _, z, inside in results:
+        ax3.scatter(x, z, color='g' if inside else 'r', s=5)
+
+    ax3.set_xlabel("X")
+    ax3.set_ylabel("Z")
+    ax3.set_title("ZX Projection")
+    ax3.set_aspect("equal")
+def interpolate_3d(interp_dx, interp_dy, interp_dz, t_query):
+    """
+    Interpolates the 3D coordinates at a given time t_query.
+
+    """
+
+    # Interpolate at t_query
+    x_t = interp_dx(t_query)
+    y_t = interp_dy(t_query)
+    z_t = interp_dz(t_query)
+
+    return np.array([x_t, y_t, z_t])
+
+def pid_control(t, error, Kp, Ki, Kd, integral,previous_error, previous_time):
+    
+    # Calculate time step dynamically
+    dt = t - previous_time
+    
+    integral += error * dt
+    derivative = (error - previous_error) / dt if dt > 0 else 0
+    previous_error = error
+    previous_time = t
+    
+    return Kp * error + Ki * integral + Kd * derivative, integral, previous_error, previous_time
+
+# COMBINED DIFFERENTIAL EQUATION
+def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     #I is the full inertial matrix, and omega is an angular velocity vector
     I11 = InertMat[0,0]
     I22 = InertMat[1,1]
@@ -513,12 +691,26 @@ def TrajandAtt(t,stateVec,T_ext_func):
     omega = stateVec[0:3]
     q = stateVec[3:7]
 
+    # Attitude control
+    global prev_time, integral_x, integral_y, integral_z, prev_error_x, prev_error_y, prev_error_z, integral_roll, integral_pitch, integral_yaw, prev_error_roll, prev_error_pitch, prev_error_yaw
+    prev_time_iter = prev_time
+    C = quaternionToDCM(q)
+    roll, pitch, yaw = DCMtoEuler(C)
+    roll_err = roll_ref - roll
+    pitch_err = pitch_ref - pitch
+    yaw_err = yaw_ref - yaw
+    
+    u_roll, integral_roll, prev_error_roll, prev_time = pid_control(t, roll_err, kP_roll, kI_roll, kD_roll, integral_roll, prev_error_roll, prev_time_iter)
+    u_pitch, integral_pitch, prev_error_pitch, prev_time = pid_control(t, pitch_err, kP_pitch, kI_pitch, kD_pitch, integral_pitch, prev_error_pitch, prev_time_iter)
+    u_yaw, integral_yaw, prev_error_yaw, prev_time = pid_control(t, yaw_err, kP_yaw, kI_yaw, kD_yaw, integral_yaw, prev_error_yaw, prev_time_iter)
+    print("u_roll: {}",format(u_roll))
+    
     omega1, omega2, omega3 = omega
-    T1, T2, T3 = T_ext_func(t)
+    #T1, T2, T3 = T_ext_func(t)
 
-    dw1dt = (T1 - (I33-I22)*omega2*omega3) / I11
-    dw2dt = (T2 - (I11-I33)*omega1*omega3) / I22
-    dw3dt = (T3 - (I22-I11)*omega2*omega1) / I33
+    dw1dt = (u_roll - (I33-I22)*omega2*omega3) / I11
+    dw2dt = (u_pitch - (I11-I33)*omega1*omega3) / I22
+    dw3dt = (u_yaw - (I22-I11)*omega2*omega1) / I33
 
     omegaDot = np.array([dw1dt, dw2dt, dw3dt]) #returns the dw/dt full vector
     qDot = getAmat(omega) @ q
@@ -535,7 +727,7 @@ def TrajandAtt(t,stateVec,T_ext_func):
     # unpack variables
     xT_ECI, yT_ECI, zT_ECI, dxT_ECI, dyT_ECI, dzT_ECI, x_ECI, y_ECI, z_ECI, dx_ECI, dy_ECI, dz_ECI, x_LVLH, y_LVLH, z_LVLH, dx_LVLH, dy_LVLH, dz_LVLH = stateVec[7:25]
     
-    # 2 body accel, Target
+    # 2 body acceleration, Target
     rT_ECI = np.array([xT_ECI, yT_ECI, zT_ECI])
     ddxT_ECI = (-mu/(np.linalg.norm(rT_ECI)**3)) * xT_ECI
     ddyT_ECI = (-mu/(np.linalg.norm(rT_ECI)**3)) * yT_ECI
@@ -547,15 +739,39 @@ def TrajandAtt(t,stateVec,T_ext_func):
     if 1<t<50:
         f = np.array([f_x, f_y, f_z]) # km/sec^2
         f_ECI, IGNORE = LVLH2ECI(rT,np.array([ dxT_ECI, dyT_ECI, dzT_ECI]),f,f)
-        print("FIRING, time =", t)
+        #print("FIRING, time =", t)
     else:
         f = np.array([0,0,0])
         f_ECI = np.array([0,0,0])
         
+    # Trajectory Control
+    dr = np.array([x_LVLH, y_LVLH, z_LVLH])
+    dr_ref = interpolate_3d(interp_dx,interp_dy,interp_dz, t)
+    dr_error = dr_ref - dr
+
+    u_x, integral_x, prev_error_x, prev_time = pid_control(t, dr_error[0], kPx, kIx, kDx, integral_x, prev_error_x, prev_time_iter)
+    u_y, integral_y, prev_error_y, prev_time = pid_control(t, dr_error[1], kPy, kIy, kDy, integral_y, prev_error_y, prev_time_iter)
+    u_z, integral_z, prev_error_z, prev_time = pid_control(t, dr_error[2], kPz, kIz, kDz, integral_z, prev_error_z, prev_time_iter)
+        
+    print( "input_x: {}".format(u_x))
+
+    if u_x > u_x_thresh: u_x = u_x_max
+    elif u_x < -1*u_x_thresh: u_x = -u_x_max
+    else: u_x = 0
+    if u_y > u_y_thresh: u_y = u_y_max
+    elif u_y < -1*u_y_thresh: u_y = -u_y_max
+    else: u_y = 0
+    if u_z > u_z_thresh: u_z = u_z_max
+    elif u_z < -1*u_z_thresh: u_z = -u_z_max
+    else: u_z = 0
+
+   # print("time: {}".format(t), "ref point: {}".format(dr_ref),"prev point: {}".format(dr) , "input_x: {}".format(u_x))
+    print( "input_x: {}".format(u_x))
+    print(t)
     # Hill Eqns, Chaser
-    ddx_LVLH = 2 * n * dy_LVLH + 3 * n**2 * x_LVLH
-    ddy_LVLH = -2 * n * dx_LVLH 
-    ddz_LVLH = -n**2 * z_LVLH 
+    ddx_LVLH = 2 * n * dy_LVLH + 3 * n**2 * x_LVLH  + u_x
+    ddy_LVLH = -2 * n * dx_LVLH + u_y
+    ddz_LVLH = -n**2 * z_LVLH + u_z
     a_LVLH = np.array([ddx_LVLH, ddy_LVLH, ddz_LVLH])
     a_LVLH = a_LVLH + f # m/sec^2
 
@@ -567,7 +783,7 @@ def TrajandAtt(t,stateVec,T_ext_func):
     a_ECI = np.array([ddx_ECI, ddy_ECI, ddz_ECI])
     a_ECI = a_ECI + f_ECI/1000 # km/sec^2
     
-    stateVecDot[7:26] = dxT_ECI,dyT_ECI,dzT_ECI,aT_ECI[0],aT_ECI[1],aT_ECI[2], dx_ECI,dy_ECI,dz_ECI,a_ECI[0],a_ECI[1],a_ECI[2], dx_LVLH,dy_LVLH,dz_LVLH,a_LVLH[0],a_LVLH[1],a_LVLH[2]
+    stateVecDot[7:25] = dxT_ECI,dyT_ECI,dzT_ECI,aT_ECI[0],aT_ECI[1],aT_ECI[2], dx_ECI,dy_ECI,dz_ECI,a_ECI[0],a_ECI[1],a_ECI[2], dx_LVLH,dy_LVLH,dz_LVLH,a_LVLH[0],a_LVLH[1],a_LVLH[2]
         
     return stateVecDot
 
@@ -586,14 +802,13 @@ def T_ext_func(t): #define the thrust over time in body frame
 
 t = 4*60
 tspan = np.array([0, t]) #spans one minute (start and stop)
-dt = 0.5 #timestep in seconds
+dt = 0.1 #timestep in seconds
 
 triangleInequality(InertMat) #checks that the object exists
 theta0 = theta0 * 2*np.pi/360 #convert attitude to radians
 
 #TRAJECTORY INPUTS
 R_Earth = 6378
-# Target ICs
 a = 400 + 6378 # semi major axis
 I = np.deg2rad(0)
 e = 0
@@ -606,12 +821,12 @@ n = 2*np.pi / tau # mean motion
 
 rT_ECI0, vT_ECI0 = sv_from_coe([a, e, RAAN, I, AOP, f], mu) # state vector of target sc, initially
 
-f_x = 0 # forces/unit mass to be applied. km/sec^2
+f_x = 0  # forces/unit mass to be applied. km/sec^2
 f_y = 0  
 f_z = 0  
 
 # Chaser ICs
-x0 = -10
+x0 = 1.5
 y0 = 0
 z0 = 0
 dx0 = 0
@@ -619,12 +834,92 @@ dy0 = 0
 dz0 = 0
 
 rC_LVLH0 = np.array([x0, y0, z0])
-
 vC_LVLH0 = cw_docking_v0(rC_LVLH0, t, n)
-
 rCrel_ECI0, vCrel_ECI0 = LVLH2ECI(rT_ECI0, vT_ECI0, rC_LVLH0, vC_LVLH0)
 rC_ECI0 = rCrel_ECI0/1000 + rT_ECI0 # chaser position in ECI, in km
 vC_ECI0 = vCrel_ECI0/1000 + vT_ECI0 # in km/sec
+
+
+#########################
+# Planning a trajectory #
+#########################
+dr0 = np.array([x0,y0,z0])
+dv0 = np.array([0,0,0])
+NumWPs = 5
+dr1 = np.array([1,0,0])
+dr2 = np.array([0.8,-0.07,-0.06])
+dr3 = np.array([0.3,0.02,0.01])
+dr4 = np.array([0.1,0,0])
+dr5 = np.array([0,0,0])
+t01 = t*0.3
+t12 = t*0.3
+t23 = t*0.2
+t34 = t*0.1
+t45 = t*0.1
+drvec = np.array([dr1,dr2,dr3,dr4,dr5])
+tvec = np.array([t01,t12,t23,t34,t45])
+# This is the planned trajectory
+Traj, deltavs = PlanTrajectory(NumWPs, drvec, tvec, dr0, dv0, dt) # Traj has ith row: drx,dry,drz,dvx,dvy,dvz,t
+# Define Pyramid geometry
+base = [(1.5, 0.2, 0.2), (1.5, -0.2, 0.2), (1.5, -0.2, -0.2), (1.5, 0.2, -0.2)]
+apex = (0,0,0)
+# Find points outside pyramid
+results = check_points_in_pyramid(Traj[:,0:3], base, apex)
+
+# Trajectory Interpolation Functions
+interp_dx = interp1d(Traj[:,6], Traj[:,0], kind='cubic', fill_value="extrapolate") # inputs: time and position
+interp_dy = interp1d(Traj[:,6], Traj[:, 1], kind='cubic', fill_value="extrapolate")
+interp_dz = interp1d(Traj[:,6], Traj[:, 2], kind='cubic', fill_value="extrapolate")
+
+# Trajectory PID Parameters
+integral_x = 0
+prev_error_x = 0
+integral_y = 0
+prev_error_y = 0
+integral_z = 0
+prev_error_z = 0
+prev_time = 0
+
+kPx = 0
+kIx = 0
+kDx = 0
+kPy = 0
+kIy = 0
+kDy = 0
+kPz = 0
+kIz = 0
+kDz = 0
+
+u_x_max = 10e-3 # m/sec^2
+u_y_max = 10e-3 # m/sec^2
+u_z_max = 10e-3 # m/sec^2
+
+u_x_thresh = 5e-4
+u_y_thresh = 5e-4
+u_z_thresh = 5e-4
+
+# Attitude PID Parameters [roll pitch yaw]
+integral_roll = 0
+prev_error_roll = 0
+integral_pitch = 0
+prev_error_pitch = 0
+integral_yaw = 0
+prev_error_yaw = 0
+prev_time = 0
+
+kP_roll = 1
+kI_roll = 0
+kD_roll = 0
+kP_pitch = 0
+kI_pitch = 0
+kD_pitch = 0
+kP_yaw = 0
+kI_yaw = 0
+kD_yaw = 0
+
+roll_ref = 30
+pitch_ref = 15
+yaw_ref = 40
 
 ###############################################
 #                 PROCESSING                  #
@@ -642,7 +937,7 @@ isv[7:26] = rT_ECI0[0],rT_ECI0[1],rT_ECI0[2],vT_ECI0[0],vT_ECI0[1],vT_ECI0[2], r
 
 print(isv)
 
-fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, t_eval = t_eval, args=(T_ext_func,), rtol=1e-10)
+fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, t_eval = t_eval, args=(T_ext_func,interp_dx,interp_dy,interp_dz), rtol=1e-6)
 
 #called it full solution because it contains lots of useless information
 #we just want how state vector changes over time
@@ -656,6 +951,8 @@ r_ECI_C = np.array([fullSolution.y[13], fullSolution.y[14], fullSolution.y[15]])
 v_ECI_C = np.array([fullSolution.y[16], fullSolution.y[17], fullSolution.y[18]])
 r_LVLH_C = np.array([fullSolution.y[19], fullSolution.y[20], fullSolution.y[21]])
 v_LVLH_C = np.array([fullSolution.y[22], fullSolution.y[23], fullSolution.y[24]])
+
+print(r_LVLH_C)
 
 # FOR DEMONSTRATION ONLY!!!!! ############################
 rolls = np.linspace(-75, 0, len(t_eval))
@@ -758,32 +1055,52 @@ if diagnosticsPlt:
 #  TRAJECTORY Plotting
 # #### --------------------------------------------------------------------------------------------------------------------------------------------------------------
 # Plot in LVLH:
+# fig = plt.figure(figsize=(8, 4))
+# ax1 = fig.add_subplot(1,2,1)
+# ax1.scatter(0, 0, s=100, marker='.', c='k', label='Origin')
+# ax1.plot(r_LVLH_C[0], r_LVLH_C[1], c='b')
+
+# ax1.set_xlabel('X (R-bar), m')
+# ax1.set_ylabel('Y (V-bar), m')
+
+# # ax1 = fig.add_subplot(1,2,1, projection='3d')
+# # ax1.scatter(0, 0, 0, s=100, marker='.', c='k', label="Origin")
+
+# # plotTraj(sol_LVLH.y[0], sol_LVLH.y[1], sol_LVLH.y[2], "LVLH", 'b', ax1)
+
+# # ax1.set_xlabel('X, m')
+# # ax1.set_ylabel('Y, m')
+# # ax1.set_zlabel('Z, m')
+# # ax1.tick_params(axis='x', labelsize=10)
+# # ax1.tick_params(axis='y', labelsize=10)
+# # ax1.tick_params(axis='z', labelsize=10)
+
+# # ax1.set_xlim([-np.max(abs(r_LVLH_C[0,:])), np.max(abs(r_LVLH_C[0,:]))])
+# # ax1.set_ylim([-np.max(abs(r_LVLH_C)), np.max(abs(r_LVLH_C))])
+# # ax1.set_zlim([-np.max(abs(r_LVLH_C)), np.max(abs(r_LVLH_C))])
+# ax1.set_title("LVLH Frame, {} orbits".format(round(t/tau,2)))
+# plt.grid(True)
+# plot_pyramid_with_points(base, apex, results,ax1)
+# ax1.legend()
+
+# plot in lvlh:
 fig = plt.figure(figsize=(8, 4))
-ax1 = fig.add_subplot(1,2,1)
-ax1.scatter(0, 0, s=100, marker='.', c='k', label='Origin')
-ax1.plot(r_LVLH_C[0], r_LVLH_C[1], c='b')
+ax1 = fig.add_subplot(111, projection='3d')
+ax1.scatter(0, 0, 0,s=100, marker='.', c='k', label='origin')
+ax1.plot(Traj[:,0], Traj[:,1], Traj[:,2], c='g', label="from LVLH" )
+ax1.plot(drvec[:,0],drvec[:,1],drvec[:,2], 'bo', label="Waypoint")
+ax1.plot(r_LVLH_C[0,:],r_LVLH_C[1,:],r_LVLH_C[2,:], 'k', label="Feedback Control Path")
 
-ax1.set_xlabel('X (R-bar), m')
-ax1.set_ylabel('Y (V-bar), m')
+ax1.set_xlabel('x (r-bar), m')
+ax1.set_ylabel('y (v-bar), m')
+ax1.set_zlabel('z (h-bar), m')
 
-# ax1 = fig.add_subplot(1,2,1, projection='3d')
-# ax1.scatter(0, 0, 0, s=100, marker='.', c='k', label="Origin")
-
-# plotTraj(sol_LVLH.y[0], sol_LVLH.y[1], sol_LVLH.y[2], "LVLH", 'b', ax1)
-
-# ax1.set_xlabel('X, m')
-# ax1.set_ylabel('Y, m')
-# ax1.set_zlabel('Z, m')
-# ax1.tick_params(axis='x', labelsize=10)
-# ax1.tick_params(axis='y', labelsize=10)
-# ax1.tick_params(axis='z', labelsize=10)
-
-# ax1.set_xlim([-np.max(abs(r_LVLH_C[0,:])), np.max(abs(r_LVLH_C[0,:]))])
-# ax1.set_ylim([-np.max(abs(r_LVLH_C)), np.max(abs(r_LVLH_C))])
-# ax1.set_zlim([-np.max(abs(r_LVLH_C)), np.max(abs(r_LVLH_C))])
-ax1.set_title("LVLH Frame, {} orbits".format(round(t/tau,2)))
+ax1.set_title("lvlh frame, {} orbits".format(round(t/tau,2)))
 plt.grid(True)
 ax1.legend()
+plot_pyramid_with_points(base, apex, results,ax1)
+plt.show()
+
 
 #Plot trajectory in ECI:
 ax2 = fig.add_subplot(1,2,2, projection='3d')

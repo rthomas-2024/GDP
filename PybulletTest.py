@@ -1,1 +1,0 @@
-print(pybullet.__version__)
