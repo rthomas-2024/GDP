@@ -880,15 +880,15 @@ integral_z = 0
 prev_error_z = 0
 prev_time = 0
 
-kPx = 0
+kPx = 4
 kIx = 0
-kDx = 0
-kPy = 0
+kDx = 1
+kPy = 4
 kIy = 0
-kDy = 0
-kPz = 0
+kDy = 1
+kPz = 4
 kIz = 0
-kDz = 0
+kDz = 1
 
 u_x_max = 10e-3 # m/sec^2
 u_y_max = 10e-3 # m/sec^2
@@ -907,7 +907,7 @@ integral_yaw = 0
 prev_error_yaw = 0
 prev_time = 0
 
-kP_roll = 1
+kP_roll = 0
 kI_roll = 0
 kD_roll = 0
 kP_pitch = 0
