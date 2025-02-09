@@ -653,32 +653,32 @@ def plot_pyramid_with_points(base, apex, results,ax):
         if inside == False:
             ax.scatter(x, y, z, '.', c='r', s=5, label = "Outside Approach Corridor")
 
-    fig = plt.figure(figsize=(8, 4))
-    # ---- XY Projection ----
-    ax2 = fig.add_subplot(122)
-    xy_xs, xy_ys = zip(*xy_triangle)
-    ax2.fill(xy_xs, xy_ys, "b", alpha=0.5)
+    # fig = plt.figure(figsize=(8, 4))
+    # # ---- XY Projection ----
+    # ax2 = fig.add_subplot(122)
+    # xy_xs, xy_ys = zip(*xy_triangle)
+    # ax2.fill(xy_xs, xy_ys, "b", alpha=0.5)
 
-    for x, y, _, inside in results:
-        ax2.scatter(x, y, color='g' if inside else 'r', s=5)
+    # for x, y, _, inside in results:
+    #     ax2.scatter(x, y, color='g' if inside else 'r', s=5)
 
-    ax2.set_xlabel("X")
-    ax2.set_ylabel("Y")
-    ax2.set_title("XY Projection")
-    ax2.set_aspect("equal")
+    # ax2.set_xlabel("X")
+    # ax2.set_ylabel("Y")
+    # ax2.set_title("XY Projection")
+    # ax2.set_aspect("equal")
 
-    # ---- ZX Projection ----
-    ax3 = fig.add_subplot(222)
-    zx_xs, zx_zs = zip(*zx_triangle)
-    ax3.fill(zx_xs, zx_zs, "r", alpha=0.5)
+    # # ---- ZX Projection ----
+    # ax3 = fig.add_subplot(222)
+    # zx_xs, zx_zs = zip(*zx_triangle)
+    # ax3.fill(zx_xs, zx_zs, "r", alpha=0.5)
 
-    for x, _, z, inside in results:
-        ax3.scatter(x, z, color='g' if inside else 'r', s=5)
+    # for x, _, z, inside in results:
+    #     ax3.scatter(x, z, color='g' if inside else 'r', s=5)
 
-    ax3.set_xlabel("X")
-    ax3.set_ylabel("Z")
-    ax3.set_title("ZX Projection")
-    ax3.set_aspect("equal")
+    # ax3.set_xlabel("X")
+    # ax3.set_ylabel("Z")
+    # ax3.set_title("ZX Projection")
+    # ax3.set_aspect("equal")
 def interpolate_3d(interp_dx, interp_dy, interp_dz, t_query):
     """
     Interpolates the 3D coordinates at a given time t_query.
@@ -715,25 +715,29 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     q = stateVec[3:7]
 
     # Attitude control
-    global prev_time, integral_x, integral_y, integral_z, prev_error_x, prev_error_y, prev_error_z, integral_roll, integral_pitch, integral_yaw, prev_error_roll, prev_error_pitch, prev_error_yaw
+    global prev_time, integral_x,integral_y,integral_z,prev_error_x,prev_error_y,prev_error_z, integral_roll,integral_pitch,integral_yaw,prev_error_roll,prev_error_pitch,prev_error_yaw
     prev_time_iter = prev_time
     C = quaternionToDCM(q)
     roll, pitch, yaw = DCMtoEuler(C)
     roll_err = roll_ref - roll
     pitch_err = pitch_ref - pitch
     yaw_err = yaw_ref - yaw
+    q_err = q - q_ref
+    C_err = quaternionToDCM(q_err)
+    roll_err, pitch_err, yaw_err = DCMtoEuler(C_err)
     
+    print("roll: {}".format(roll), "pitch: {}".format(pitch), "yaw: {}".format(yaw))
     u_roll, integral_roll, prev_error_roll, prev_time = pid_control(t, roll_err, kP_roll, kI_roll, kD_roll, integral_roll, prev_error_roll, prev_time_iter)
     u_pitch, integral_pitch, prev_error_pitch, prev_time = pid_control(t, pitch_err, kP_pitch, kI_pitch, kD_pitch, integral_pitch, prev_error_pitch, prev_time_iter)
     u_yaw, integral_yaw, prev_error_yaw, prev_time = pid_control(t, yaw_err, kP_yaw, kI_yaw, kD_yaw, integral_yaw, prev_error_yaw, prev_time_iter)
-    print("u_roll: {}",format(u_roll))
+    print("u_roll: {}".format(u_roll),"u_pitch: {}".format(u_pitch),"u_yaw: {}".format(u_yaw))
     
     omega1, omega2, omega3 = omega
     #T1, T2, T3 = T_ext_func(t)
-
-    dw1dt = (u_roll - (I33-I22)*omega2*omega3) / I11
-    dw2dt = (u_pitch - (I11-I33)*omega1*omega3) / I22
-    dw3dt = (u_yaw - (I22-I11)*omega2*omega1) / I33
+    T_control = np.dot(InertMat.T, np.array([u_roll,u_pitch,u_yaw]))
+    dw1dt = (T_control[0] - (I33-I22)*omega2*omega3) / I11
+    dw2dt = (T_control[1] - (I11-I33)*omega1*omega3) / I22
+    dw3dt = (T_control[2] - (I22-I11)*omega2*omega1) / I33
 
     omegaDot = np.array([dw1dt, dw2dt, dw3dt]) #returns the dw/dt full vector
     qDot = getAmat(omega) @ q
@@ -776,20 +780,20 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     u_y, integral_y, prev_error_y, prev_time = pid_control(t, dr_error[1], kPy, kIy, kDy, integral_y, prev_error_y, prev_time_iter)
     u_z, integral_z, prev_error_z, prev_time = pid_control(t, dr_error[2], kPz, kIz, kDz, integral_z, prev_error_z, prev_time_iter)
         
-    print( "input_x: {}".format(u_x))
+    #print( "input_x: {}".format(u_x))
 
     if u_x > u_x_thresh: u_x = u_x_max
-    elif u_x < -1*u_x_thresh: u_x = -u_x_max
+    elif u_x < -u_x_thresh: u_x = -u_x_max
     else: u_x = 0
     if u_y > u_y_thresh: u_y = u_y_max
-    elif u_y < -1*u_y_thresh: u_y = -u_y_max
+    elif u_y < -u_y_thresh: u_y = -u_y_max
     else: u_y = 0
     if u_z > u_z_thresh: u_z = u_z_max
-    elif u_z < -1*u_z_thresh: u_z = -u_z_max
+    elif u_z < -u_z_thresh: u_z = -u_z_max
     else: u_z = 0
 
    # print("time: {}".format(t), "ref point: {}".format(dr_ref),"prev point: {}".format(dr) , "input_x: {}".format(u_x))
-    print( "input_x: {}".format(u_x))
+    #print( "input_x: {}".format(u_x))
     print(t)
     # Hill Eqns, Chaser
     ddx_LVLH = 2 * n * dy_LVLH + 3 * n**2 * x_LVLH  + u_x
@@ -814,8 +818,8 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
 #                   INPUTS                    #
 ###############################################
 InertMat = np.array([[1,0,0], [0,1,0],[0,0,1]]) #inertial matrix
-w0 = np.array([0.001,0.004,0.002]) #initial angular velocity
-theta0 = np.array([0,0,0]) #initial attitude in degrees (roll, pitch, yaw)
+w0 = np.array([0.00,0.00,0.00]) #initial angular velocity
+theta0 = np.array([10,10,10]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in body frame
    T1 = 0
@@ -825,7 +829,7 @@ def T_ext_func(t): #define the thrust over time in body frame
 
 t = 4*60
 tspan = np.array([0, t]) #spans one minute (start and stop)
-dt = 0.1 #timestep in seconds
+dt = 1 #timestep in seconds
 
 triangleInequality(InertMat) #checks that the object exists
 theta0 = theta0 * 2*np.pi/360 #convert attitude to radians
@@ -928,22 +932,22 @@ integral_pitch = 0
 prev_error_pitch = 0
 integral_yaw = 0
 prev_error_yaw = 0
-prev_time = 0
 
-kP_roll = 0
+kP_roll = 1
 kI_roll = 0
 kD_roll = 0
-kP_pitch = 0
+kP_pitch = 1
 kI_pitch = 0
 kD_pitch = 0
-kP_yaw = 0
+kP_yaw = 1
 kI_yaw = 0
 kD_yaw = 0
 
-roll_ref = 30
-pitch_ref = 15
-yaw_ref = 40
-
+roll_ref = np.deg2rad(40)
+pitch_ref = np.deg2rad(40)
+yaw_ref = np.deg2rad(40)
+C_ref = eulerToDCM(np.array([roll_ref,pitch_ref,yaw_ref]))
+q_ref = DCMtoQuaternion(C_ref)
 ###############################################
 #                 PROCESSING                  #
 ###############################################
@@ -960,7 +964,7 @@ isv[7:26] = rT_ECI0[0],rT_ECI0[1],rT_ECI0[2],vT_ECI0[0],vT_ECI0[1],vT_ECI0[2], r
 
 print(isv)
 
-fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, t_eval = t_eval, args=(T_ext_func,interp_dx,interp_dy,interp_dz), rtol=1e-6)
+fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, method='RK45', t_eval = t_eval, args=(T_ext_func,interp_dx,interp_dy,interp_dz))
 
 #called it full solution because it contains lots of useless information
 #we just want how state vector changes over time
@@ -975,7 +979,7 @@ v_ECI_C = np.array([fullSolution.y[16], fullSolution.y[17], fullSolution.y[18]])
 r_LVLH_C = np.array([fullSolution.y[19], fullSolution.y[20], fullSolution.y[21]])
 v_LVLH_C = np.array([fullSolution.y[22], fullSolution.y[23], fullSolution.y[24]])
 
-print(r_LVLH_C)
+#print(r_LVLH_C)
 
 # FOR DEMONSTRATION ONLY!!!!! ############################
 rolls = np.linspace(-75, 0, len(t_eval))
@@ -986,9 +990,9 @@ yaws = np.linspace(-60, 0, len(t_eval))
 euler_angles = np.stack((rolls, pitchs, yaws), axis=1)
 
 # Convert Euler angles (degrees) to quaternions
-qs = R.from_euler('xyz', euler_angles, degrees=True).as_quat()
-qs = qs.T
-# DELETE EVERYTHING ABOVE UP TO THE DEMONSTRATION LINE. THIS IS NOT PROPER SPACE DYNAMICS
+# qs = R.from_euler('xyz', euler_angles, degrees=True).as_quat()
+# qs = qs.T
+# # DELETE EVERYTHING ABOVE UP TO THE DEMONSTRATION LINE. THIS IS NOT PROPER SPACE DYNAMICS
 
 
 #find the error in the norm of the quaternions from 1
@@ -1022,8 +1026,23 @@ matplotlibPlt = False
 pybulletPlt = True
 acc = 30 #accelerates the time for the dynamic plotting
 
-#centroid = np.array([1,0,0])
+euler_angs = np.zeros([3,len(qs[0,:])])
+for ii in range(0,len(qs[0,:])):
+    q = qs[:,ii]
+    print(q)
+    C = quaternionToDCM(q)
+    roll, pitch, yaw = DCMtoEuler(C)
+    print("roll: {}".format(roll), "pitch: {}".format(pitch), "yaw: {}".format(yaw))
+    euler_angs[:,ii] = roll,pitch,yaw
 
+plt.figure()
+plt.plot(t_eval,euler_angs[0,:], label="roll")
+plt.plot(t_eval,euler_angs[1,:], label="pitch")
+plt.plot(t_eval,euler_angs[2,:], label="yaw")
+plt.legend()
+
+#centroid = np.array([1,0,0])
+print(fullSolution.message)
 if diagnosticsPlt:
     #PLOT STATES (DIAGNOSTICS)
     fig1, axs = plt.subplots(2, 2, figsize=(15,10))
@@ -1071,7 +1090,7 @@ if diagnosticsPlt:
     ax4.legend()
 
     plt.subplots_adjust(wspace=0.25, hspace=0.3)
-    plt.show()
+    #plt.show()
 
 
 #### --------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1125,22 +1144,22 @@ plot_pyramid_with_points(base, apex, results,ax1)
 plt.show()
 
 
-#Plot trajectory in ECI:
-ax2 = fig.add_subplot(1,2,2, projection='3d')
-plotTraj(r_ECI_T[0], r_ECI_T[1], r_ECI_T[2], "Target", 'r', ax2, Marker=True)
-plotTraj(r_ECI_C[0], r_ECI_C[1], r_ECI_C[2], "Chaser", 'g', ax2, Marker=True)
-ax2.scatter(0, 0, 0, s=100, marker='.', c='k', label="Origin")
+# #Plot trajectory in ECI:
+# ax2 = fig.add_subplot(1,2,2, projection='3d')
+# plotTraj(r_ECI_T[0], r_ECI_T[1], r_ECI_T[2], "Target", 'r', ax2, Marker=True)
+# plotTraj(r_ECI_C[0], r_ECI_C[1], r_ECI_C[2], "Chaser", 'g', ax2, Marker=True)
+# ax2.scatter(0, 0, 0, s=100, marker='.', c='k', label="Origin")
 
-ax2.set_xlabel('X, km')
-ax2.set_ylabel('Y, km')
-ax2.set_zlabel('Z, km')
-ax2.tick_params(axis='x', labelsize=10)
-ax2.tick_params(axis='y', labelsize=10)
-ax2.tick_params(axis='z', labelsize=10)
+# ax2.set_xlabel('X, km')
+# ax2.set_ylabel('Y, km')
+# ax2.set_zlabel('Z, km')
+# ax2.tick_params(axis='x', labelsize=10)
+# ax2.tick_params(axis='y', labelsize=10)
+# ax2.tick_params(axis='z', labelsize=10)
 
-ax2.set_title("ECI, {} orbits".format(round(t/tau,2)))
-ax2.legend()
-plt.show()
+# ax2.set_title("ECI, {} orbits".format(round(t/tau,2)))
+# ax2.legend()
+# plt.show()
 
 
 #DYNAMIC PLOTTING (MATPLOTLIB)
