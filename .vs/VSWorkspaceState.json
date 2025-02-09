@@ -1,8 +1,8 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\__pycache__"
   ],
-  "SelectedNode": "\\Virtual_Twin.py",
-  "SelectedNode": "\\SC_Architecture.py",
+  "SelectedNode": "\\Testing_OOP.py",
   "PreviewInSolutionExplorer": false
 }
