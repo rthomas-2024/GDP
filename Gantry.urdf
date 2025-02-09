@@ -1,0 +1,5 @@
+<robot name="gantry">
+	<link name="base_link">
+
+	</link>
+</robot>
