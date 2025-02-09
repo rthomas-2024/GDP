@@ -2,6 +2,9 @@
 #                  IMPORTS                    #
 ###############################################
 import numpy as np
+from numpy import sin as s
+from numpy import cos as c
+from numpy import pi as pi
 import matplotlib.pyplot as plt
 import scipy as sc
 from scipy import interpolate
@@ -12,8 +15,6 @@ import pybullet as p
 from scipy.spatial.transform import Rotation as R
 
 from scipy.integrate import solve_ivp
-import numpy as np
-import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from scipy.interpolate import interp1d
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -83,6 +84,35 @@ def quatToVisQuat(q):
     q[3] = q0
 
     return q
+def getCosPitch(C11, C12, yaw):
+    #get cos(pitch) from C11 or C12 because yaw is known
+    #cannot find if the DCM component is 0
+    #but will never both be zero unless in gimbal lock
+    if C11 > 1e-10 or C11 < -1e-10:
+        #essentially is C11 is not equal to 0, but have to acount for numerical errors, wont be exactly 0
+        cosPitch = C11/c(yaw)
+    else:
+        #this is the case where C11 IS equal to 0, must use C12
+        cosPitch = C12/s(yaw)
+
+    return cosPitch
+def getGimbalLockAngles(sinPitch, C22, C32):
+    print('GIMBAL LOCK')
+    #can of course directlty find pitch
+    if sinPitch == 1:
+        pitch = pi/2
+    elif sinPitch == -1:
+        pitch = -pi/2
+    else:
+        print("gimbal lock error 1")
+
+    #use the 'trick' of arbitrarily setting yaw to 0
+    yaw = 0
+
+    #now find roll (see derivation of this on document)
+    roll = np.arctan2(-C32, C22)
+
+    return roll, pitch, yaw
 
 #TRANSFORMATION FUNCTIONS (ATTITUDE)
 def quaternionToDCM(beta):
@@ -155,54 +185,83 @@ def DCMtoQuaternion(dcm):
     q = np.array([b0,b1,b2,b3])
     return q
 def eulerToDCM(rollPitchYaw):
+    #we want to find the DCM that transforms an inertial vector to a body one
+    #these are of course the 3-2-1 
     roll, pitch, yaw = rollPitchYaw
 
-    #compute individual rotation matrices
-    #for us, 3-2-1 Euler angles, so yaw-pitch-roll (yaw first, then pitch, then roll)
-    R_x = np.array([[1, 0, 0],
-        [0, np.cos(roll), -np.sin(roll)],
-        [0, np.sin(roll), np.cos(roll)]])
-    
-    R_y = np.array([[np.cos(pitch), 0, np.sin(pitch)],
-        [0, 1, 0],
-        [-np.sin(pitch), 0, np.cos(pitch)]])
-    
-    R_z = np.array([[np.cos(yaw), -np.sin(yaw), 0],
-        [np.sin(yaw), np.cos(yaw), 0],
-        [0, 0, 1]])
-    
-    #combined DCM for ZYX order (yaw-pitch-roll)
-    dcm = R_z @ R_y @ R_x
-    #this is the DCM to go FROM body TO inertial
+    #first rotation about the 3-axis (z-axis) is yaw
+    R3 = np.array([[c(yaw), s(yaw), 0],
+                  [-s(yaw), c(yaw), 0],
+                   [0,0,1]])
 
-    return dcm #DCM FROM body TO inertial
+    #second rotation about the 2-axis (y-axis) is pitch
+    R2 = np.array([[c(pitch), 0, -s(pitch)],
+                   [0,1,0],
+                   [s(pitch), 0, c(pitch)]])
+
+    #third rotation about the 1-axis (x-axis) is roll
+    R1 = np.array([[1,0,0],
+                   [0,c(roll),s(roll)],
+                   [0, -s(roll), c(roll)]])
+
+    #apply to inertial vec in order 3-2-1 (3 first so on the right, etc)
+    dcm = R1 @ R2 @ R3
+
+    return dcm
 def DCMtoEuler(dcm):
-    #function made assuming that it is impossible to get a singularity in a DCM
-    #because all DCM's are derived from quaternions (keep this in mind when checking code, and test)
-    #this is again assuming that the input DCM is the DCM FROM body TO inertial
+    #this is again assuming that the input DCM is the DCM FROM inertial TO body
+    C11, C12, C13 = dcm[0,:]
+    C21, C22, C23 = dcm[1,:]
+    C31, C32, C33 = dcm[2,:]
 
-    # Extract pitch (theta) from -R[2, 0] (R13)
-    pitch = np.arcsin(-dcm[2, 0])  # arcsin gives values in [-pi/2, pi/2]
-    
-    # Handle gimbal lock case (pitch near +/-90 degrees)
-    if np.abs(dcm[2, 0]) > 0.999999:  # Gimbal lock condition
-        yaw = np.arctan2(-dcm[0, 1], dcm[1, 1])  # Combine yaw and roll into one angle
-        roll = 0  # Set roll to 0 in the gimbal lock case
+    #arctan2 does an automatic quadrant check
+    yaw = np.arctan2(C12,C11)
+    roll = np.arctan2(C23,C33)
+
+    #now solve for pitch
+    #we need sin(pitch) and cos(pitch) to determine the correct pitch angle
+    sinPitch = -C13
+    cosPitch = getCosPitch(C11,C12,yaw)
+
+    if sinPitch == 1 or sinPitch == -1:
+        #must check for gimbal lock FIRST of course, if found true, wont run the rest of the if
+        roll, pitch, yaw = getGimbalLockAngles(sinPitch, C22, C32)
+
+    elif sinPitch == 0:
+        #first case if sin(pitch) is 0, check which value it takes depending on cos(pitch)
+        if cosPitch > 0.99 and cosPitch < 1.01:
+            #the above is essentially cosPitch == 1, but need to take into account numerical errors
+            #numerical errors here dont have to be fine because if sinPitch is 0, cosPitch will be either 1 or -1, just have to be near
+            pitch = 0
+        elif cosPitch == cosPitch > -1.01 and cosPitch < -0.99:
+            #same but for cosPitch == -1, taking into account numerical errors
+            pitch = pi
+        else:
+            print(sinPitch)
+            print(cosPitch)
+            print("DCM to Euler error 1")
+
+    elif sinPitch > 0:
+        #second case if sin(pitch) is greater than 0, again check using cos(pitch)
+        if cosPitch > 0:
+            pitch = np.arcsin(sinPitch)
+        elif cosPitch < 0:
+            pitch = pi - np.arcsin(sinPitch)
+        else:
+            print("DCM to Euler error 2")
+
+    elif sinPitch < 0:
+        #third case if sin(pitch) is less than 0, again check using cos(pitch)
+        if cosPitch > 0:
+            pitch = np.arcsin(sinPitch)
+        elif cosPitch < 0:
+            pitch = -pi + abs(np.arcsin(sinPitch))
+        else:
+            print("DCM to Euler error 3")
     else:
-        # Compute yaw and roll normally
-        yaw = np.arctan2(dcm[1, 0], dcm[0, 0])  # Yaw (psi) from R21 and R11
-        roll = np.arctan2(dcm[2, 1], dcm[2, 2])  # Roll (phi) from R32 and R33
+        print("DCM to Euler error 4")
 
-        # Handle pitch > 90 or < -90
-        if np.cos(pitch) < 0:  # This indicates the pitch is beyond 90 or -90
-            pitch = np.pi - pitch  # Adjust pitch
-            yaw += np.pi  # Adjust yaw
-            roll += np.pi  # Adjust roll
-
-    # Ensure angles remain in the valid range [-180, 180]
-    yaw = (yaw + np.pi) % (2 * np.pi) - np.pi
-    roll = (roll + np.pi) % (2 * np.pi) - np.pi
-
+    
     return np.array([roll,pitch,yaw])
 
 #CORE FUNCTIONS (ATTITUDE)
@@ -718,6 +777,9 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     global prev_time, integral_x,integral_y,integral_z,prev_error_x,prev_error_y,prev_error_z, integral_roll,integral_pitch,integral_yaw,prev_error_roll,prev_error_pitch,prev_error_yaw
     prev_time_iter = prev_time
     C = quaternionToDCM(q)
+    print(q)
+    print(C)
+    print('Quaternion error = {}'.format(np.sqrt(q[0]**2+q[1]**2)+q[2]**2+q[3]**2-1))
     roll, pitch, yaw = DCMtoEuler(C)
     roll_err = roll_ref - roll
     pitch_err = pitch_ref - pitch
@@ -730,7 +792,7 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     u_roll, integral_roll, prev_error_roll, prev_time = pid_control(t, roll_err, kP_roll, kI_roll, kD_roll, integral_roll, prev_error_roll, prev_time_iter)
     u_pitch, integral_pitch, prev_error_pitch, prev_time = pid_control(t, pitch_err, kP_pitch, kI_pitch, kD_pitch, integral_pitch, prev_error_pitch, prev_time_iter)
     u_yaw, integral_yaw, prev_error_yaw, prev_time = pid_control(t, yaw_err, kP_yaw, kI_yaw, kD_yaw, integral_yaw, prev_error_yaw, prev_time_iter)
-    print("u_roll: {}".format(u_roll),"u_pitch: {}".format(u_pitch),"u_yaw: {}".format(u_yaw))
+    #print("u_roll: {}".format(u_roll),"u_pitch: {}".format(u_pitch),"u_yaw: {}".format(u_yaw))
     
     omega1, omega2, omega3 = omega
     #T1, T2, T3 = T_ext_func(t)
@@ -933,13 +995,13 @@ prev_error_pitch = 0
 integral_yaw = 0
 prev_error_yaw = 0
 
-kP_roll = 1
+kP_roll = 0
 kI_roll = 0
 kD_roll = 0
-kP_pitch = 1
+kP_pitch = 0
 kI_pitch = 0
 kD_pitch = 0
-kP_yaw = 1
+kP_yaw = 0
 kI_yaw = 0
 kD_yaw = 0
 
@@ -964,7 +1026,7 @@ isv[7:26] = rT_ECI0[0],rT_ECI0[1],rT_ECI0[2],vT_ECI0[0],vT_ECI0[1],vT_ECI0[2], r
 
 print(isv)
 
-fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, method='RK45', t_eval = t_eval, args=(T_ext_func,interp_dx,interp_dy,interp_dz))
+fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, method='RK45', t_eval = t_eval, args=(T_ext_func,interp_dx,interp_dy,interp_dz), rtol=1e-10)
 
 #called it full solution because it contains lots of useless information
 #we just want how state vector changes over time
