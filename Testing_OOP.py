@@ -1,8 +1,8 @@
 ﻿from SC_Architecture import Thruster, ReactionWheel, SpaceCraft
 import numpy as np
 
-az = 20
-el = 0
+az = 30
+el = 40
 Xs = 3
 Ys = 2
 Zs = 1
@@ -24,6 +24,51 @@ CubeSat = SpaceCraft("RAYWATCH", 10, np.array([[1,0,0],[0,1,0],[0,0,1]]), np.arr
 
 from itertools import combinations
 
+
+# def find_min_thruster_combination(T):
+#     """
+#     Finds the minimum number of thrusters that satisfy:
+#     - Only force in X (Fy = 0, Fz = 0, τx = 0, τy = 0, τz = 0).
+#     - Fx must be positive.
+#     - Thrusters are ON (1) or OFF (0).
+    
+#     Args:
+#         T (np.ndarray): ThrustVectorMatrix (n x 6), where columns are [Fx, Fy, Fz, τx, τy, τz]
+    
+#     Returns:
+#         np.ndarray: Binary vector (1 = thruster ON, 0 = OFF).
+#     """
+#     num_thrusters = T.shape[0]
+    
+
+#     # Try increasing numbers of thrusters, starting with the smallest sets
+#     for r in range(1, num_thrusters + 1):
+#         for thruster_indices in combinations(range(num_thrusters), r):
+#             thruster_states = np.zeros(num_thrusters)  # All off
+#             thruster_states[list(thruster_indices)] = 1  # Turn on selected thrusters
+
+#             # Compute total force & torque
+#             resultant_force_torque = np.sum(T * thruster_states[:, None], axis=0)
+#             Fx, Fy, Fz, τx, τy, τz = resultant_force_torque
+
+#             # Check if it meets the criteria
+#             if Fx > 0 and Fy == 0 and Fz == 0 and τx == 0 and τy == 0 and τz == 0:
+#                 return thruster_states  # Return the first valid minimum-thruster solution
+            
+    
+#     print("No valid thruster configuration found.")
+#     return None
+
+
+# # Example usage
+# optimal_thrusters = find_min_thruster_combination(CubeSat.ThrustVectorMatrix)
+
+# if optimal_thrusters is not None:
+#     print("Optimal thrusters to activate:", optimal_thrusters)
+# else:
+#     print("No valid thruster configuration found.")
+
+
 def find_min_thruster_combination(T):
     """
     Finds the minimum number of thrusters that satisfy:
@@ -38,35 +83,91 @@ def find_min_thruster_combination(T):
         np.ndarray: Binary vector (1 = thruster ON, 0 = OFF).
     """
     num_thrusters = T.shape[0]
+    thruster_states = np.zeros([T.shape[0], 12])  # All off
+    thruster_states_dic = {}
+    Actuator_headings = ["Fx","Fy","Fz","Tx","Ty","Tz","-Fx","-Fy","-Fz","-Tx","-Ty","-Tz"]
+    # for positive thrusts/torques
+    for ii in range(0, 6):
+        COMPLETE = 0
+        print(T[ii,:])
+        # Try increasing numbers of thrusters, starting with the smallest sets
+        for r in range(1, num_thrusters + 1):
+            for thruster_indices in combinations(range(num_thrusters), r):
+                thruster_states_ii = np.zeros(num_thrusters)  # All off
+                thruster_states_ii[list(thruster_indices)] = 1  # Turn on selected thrusters
+                # Compute total force & torque
+                resultant_force_torque = np.sum(T * thruster_states_ii[:, None], axis=0) # Fx, Fy, Fz, τx, τy, τz
+                # Check if it meets the criteria
+                if COMPLETE == 0 and resultant_force_torque[ii]>0 and np.sum(resultant_force_torque)-resultant_force_torque[ii] == 0:
+                    print(Actuator_headings[ii], "**************************************************")
+                    print(thruster_states_ii)
+                    thruster_states[:,ii] = thruster_states_ii
+                    thruster_states_dic[Actuator_headings[ii]] = thruster_states_ii
+                    COMPLETE = 1 # we have found the correct thruster config for this loop
     
-    # Try increasing numbers of thrusters, starting with the smallest sets
-    for r in range(1, num_thrusters + 1):
-        for thruster_indices in combinations(range(num_thrusters), r):
-            thruster_states = np.zeros(num_thrusters)  # All off
-            thruster_states[list(thruster_indices)] = 1  # Turn on selected thrusters
+    # for negative thrusts/torques
+    for ii in range(0, 6):
+        COMPLETE = 0
+        print(T[ii,:])
+        # Try increasing numbers of thrusters, starting with the smallest sets
+        for r in range(1, num_thrusters + 1):
+            for thruster_indices in combinations(range(num_thrusters), r):
+                thruster_states_ii = np.zeros(num_thrusters)  # All off
+                thruster_states_ii[list(thruster_indices)] = 1  # Turn on selected thrusters
+                # Compute total force & torque
+                resultant_force_torque = np.sum(T * thruster_states_ii[:, None], axis=0) # Fx, Fy, Fz, τx, τy, τz
+                # Check if it meets the criteria
+                if COMPLETE == 0 and resultant_force_torque[ii]<0 and np.sum(resultant_force_torque)-resultant_force_torque[ii] == 0:
+                    print(Actuator_headings[6+ii], "**************************************************")
+                    print(thruster_states_ii)
+                    thruster_states[:,6+ii] = thruster_states_ii
+                    thruster_states_dic[Actuator_headings[6+ii]] = thruster_states_ii
+                    COMPLETE = 1
+                    
+    print(thruster_states_dic)
+    return thruster_states, thruster_states_dic
 
-            # Compute total force & torque
-            resultant_force_torque = np.sum(T * thruster_states[:, None], axis=0)
-            Fx, Fy, Fz, τx, τy, τz = resultant_force_torque
-
-            # Check if it meets the criteria
-            if Fx > 0 and Fy == 0 and Fz == 0 and τx == 0 and τy == 0 and τz == 0:
-                return thruster_states  # Return the first valid minimum-thruster solution
-    
-    print("No valid thruster configuration found.")
-    return None
 
 # Example usage
-optimal_thrusters = find_min_thruster_combination(CubeSat.ThrustVectorMatrix)
+#optimal_thrusters,optimal_thrusters_dic = find_min_thruster_combination(CubeSat.ThrustVectorMatrix)
 
-if optimal_thrusters is not None:
-    print("Optimal thrusters to activate:", optimal_thrusters)
-else:
-    print("No valid thruster configuration found.")
+optimal_thrusters_dic = CubeSat.thruster_states_dic
 
+print(optimal_thrusters_dic["Fx"])
+print(optimal_thrusters_dic["-Fx"])
+print(optimal_thrusters_dic["Fy"])
+print(optimal_thrusters_dic["-Fy"])
+print(optimal_thrusters_dic["Fz"])
+print(optimal_thrusters_dic["-Fz"])
+print(optimal_thrusters_dic["Tx"])
+print(optimal_thrusters_dic["-Tx"])
+print(optimal_thrusters_dic["Ty"])
+print(optimal_thrusters_dic["-Ty"])
+print(optimal_thrusters_dic["Tz"])
+print(optimal_thrusters_dic["-Tz"])
 
-print(CubeSat)
-print(CubeSat.ThrustVectorMatrix)
+# if optimal_thrusters is not None:
+#     print("Optimal thrusters to activate:", optimal_thrusters)
+# else:
+#     print("No valid thruster configuration found.")
+
 CubeSat.DrawSpaceCraft(DRAW_THRUSTERS=1)
+print(CubeSat)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#print(CubeSat)
+#print(CubeSat.ThrustVectorMatrix)
 
 
