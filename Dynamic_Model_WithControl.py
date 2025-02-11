@@ -705,13 +705,18 @@ def plot_pyramid_with_points(base, apex, results,ax):
     zx_triangle = [(base[1][0], base[1][2]), (base[2][0], base[2][2]), (apex[0], apex[2])]
     
     # ---- 3D Plot ----
-    ax.add_collection3d(Poly3DCollection(faces, alpha=0.3, edgecolor='k',label="Approach Corridor"))
+    ax.add_collection3d(Poly3DCollection(faces, alpha=0.2, edgecolor='k',label="Approach Corridor"))
 
     # Plot points
+    RED_LEGEND = 1
     for x, y, z, inside in results:
-        if inside == False:
+        if inside == False and RED_LEGEND==1:
             ax.scatter(x, y, z, '.', c='r', s=5, label = "Outside Approach Corridor")
+            RED_LEGEND = 0
+        elif inside == False:
+            ax.scatter(x, y, z, '.', c='r', s=5)
 
+    ax.legend()
     # fig = plt.figure(figsize=(8, 4))
     # # ---- XY Projection ----
     # ax2 = fig.add_subplot(122)
@@ -777,23 +782,31 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     global prev_time, integral_x,integral_y,integral_z,prev_error_x,prev_error_y,prev_error_z, integral_roll,integral_pitch,integral_yaw,prev_error_roll,prev_error_pitch,prev_error_yaw
     prev_time_iter = prev_time
     C = quaternionToDCM(q)
-    print(q)
-    print(C)
-    print('Quaternion error = {}'.format(np.sqrt(q[0]**2+q[1]**2)+q[2]**2+q[3]**2-1))
     roll, pitch, yaw = DCMtoEuler(C)
     roll_err = roll_ref - roll
     pitch_err = pitch_ref - pitch
     yaw_err = yaw_ref - yaw
-    q_err = q - q_ref
-    C_err = quaternionToDCM(q_err)
-    roll_err, pitch_err, yaw_err = DCMtoEuler(C_err)
+    # q_err = q - q_ref
+    # C_err = quaternionToDCM(q_err)
+    # roll_err, pitch_err, yaw_err = DCMtoEuler(C_err)
     
     print("roll: {}".format(roll), "pitch: {}".format(pitch), "yaw: {}".format(yaw))
     u_roll, integral_roll, prev_error_roll, prev_time = pid_control(t, roll_err, kP_roll, kI_roll, kD_roll, integral_roll, prev_error_roll, prev_time_iter)
     u_pitch, integral_pitch, prev_error_pitch, prev_time = pid_control(t, pitch_err, kP_pitch, kI_pitch, kD_pitch, integral_pitch, prev_error_pitch, prev_time_iter)
     u_yaw, integral_yaw, prev_error_yaw, prev_time = pid_control(t, yaw_err, kP_yaw, kI_yaw, kD_yaw, integral_yaw, prev_error_yaw, prev_time_iter)
-    #print("u_roll: {}".format(u_roll),"u_pitch: {}".format(u_pitch),"u_yaw: {}".format(u_yaw))
+
+    print("u_roll: {}".format(u_roll),"u_pitch: {}".format(u_pitch),"u_yaw: {}".format(u_yaw))
     
+    if u_roll > u_roll_thresh: u_roll = u_roll_max
+    elif u_roll < -u_roll_thresh: u_roll = -u_roll_max
+    else: u_roll = 0
+    if u_pitch > u_pitch_thresh: u_pitch = u_pitch_max
+    elif u_pitch < -u_pitch_thresh: u_pitch = -u_pitch_max
+    else: u_pitch = 0
+    if u_yaw > u_yaw_thresh: u_yaw = u_yaw_max
+    elif u_yaw < -u_yaw_thresh: u_yaw = -u_yaw_max
+    else: u_yaw = 0
+
     omega1, omega2, omega3 = omega
     #T1, T2, T3 = T_ext_func(t)
     T_control = np.dot(InertMat.T, np.array([u_roll,u_pitch,u_yaw]))
@@ -875,6 +888,95 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     stateVecDot[7:25] = dxT_ECI,dyT_ECI,dzT_ECI,aT_ECI[0],aT_ECI[1],aT_ECI[2], dx_ECI,dy_ECI,dz_ECI,a_ECI[0],a_ECI[1],a_ECI[2], dx_LVLH,dy_LVLH,dz_LVLH,a_LVLH[0],a_LVLH[1],a_LVLH[2]
         
     return stateVecDot
+def TrajandAttREDUCED(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
+    #I is the full inertial matrix, and omega is an angular velocity vector
+    I11 = InertMat[0,0]
+    I22 = InertMat[1,1]
+    I33 = InertMat[2,2]
+
+    omega = stateVec[0:3]
+    roll,pitch,yaw = stateVec[3:6]
+
+    # Attitude control
+    global prev_time, integral_x,integral_y,integral_z,prev_error_x,prev_error_y,prev_error_z, integral_roll,integral_pitch,integral_yaw,prev_error_roll,prev_error_pitch,prev_error_yaw
+    prev_time_iter = prev_time
+
+    roll_err = roll_ref - roll
+    pitch_err = pitch_ref - pitch
+    yaw_err = yaw_ref - yaw
+    
+    print("roll: {}".format(roll), "pitch: {}".format(pitch), "yaw: {}".format(yaw))
+    u_roll, integral_roll, prev_error_roll, prev_time = pid_control(t, roll_err, kP_roll, kI_roll, kD_roll, integral_roll, prev_error_roll, prev_time_iter)
+    u_pitch, integral_pitch, prev_error_pitch, prev_time = pid_control(t, pitch_err, kP_pitch, kI_pitch, kD_pitch, integral_pitch, prev_error_pitch, prev_time_iter)
+    u_yaw, integral_yaw, prev_error_yaw, prev_time = pid_control(t, yaw_err, kP_yaw, kI_yaw, kD_yaw, integral_yaw, prev_error_yaw, prev_time_iter)
+    #print("u_roll: {}".format(u_roll),"u_pitch: {}".format(u_pitch),"u_yaw: {}".format(u_yaw))
+    
+    if u_roll > u_roll_thresh: u_roll = u_roll_max
+    elif u_roll < -u_roll_thresh: u_roll = -u_roll_max
+    else: u_roll = 0
+    if u_pitch > u_pitch_thresh: u_pitch = u_pitch_max
+    elif u_pitch < -u_pitch_thresh: u_pitch = -u_pitch_max
+    else: u_pitch = 0
+    if u_yaw > u_yaw_thresh: u_yaw = u_yaw_max
+    elif u_yaw < -u_yaw_thresh: u_yaw = -u_yaw_max
+    else: u_yaw = 0
+
+    omega1, omega2, omega3 = omega
+    #T1, T2, T3 = T_ext_func(t)
+    T_control = np.dot(InertMat.T, np.array([u_roll,u_pitch,u_yaw]))
+    dw1dt = (T_control[0] - (I33-I22)*omega2*omega3) / I11
+    dw2dt = (T_control[1] - (I11-I33)*omega1*omega3) / I22
+    dw3dt = (T_control[2] - (I22-I11)*omega2*omega1) / I33
+
+    omegaDot = np.array([dw1dt, dw2dt, dw3dt]) #returns the dw/dt full vector
+    #qDot = getAmat(omega) @ q
+
+    stateVecDot = np.zeros([12])
+    stateVecDot[0:3] = omegaDot
+    stateVecDot[3:6] = omega
+    #stateVecDot[3:6] = qDot
+    #note quaternions used because it creates smooth interpolation for animations. this is called slerp
+
+    ###########################
+    # TRAJECTORY
+    ###########################
+    # unpack variables
+    x_LVLH, y_LVLH, z_LVLH, dx_LVLH, dy_LVLH, dz_LVLH = stateVec[6:12]
+    
+    # Trajectory Control
+    dr = np.array([x_LVLH, y_LVLH, z_LVLH])
+    dr_ref = interpolate_3d(interp_dx,interp_dy,interp_dz, t)
+    dr_error = dr_ref - dr
+
+    u_x, integral_x, prev_error_x, prev_time = pid_control(t, dr_error[0], kPx, kIx, kDx, integral_x, prev_error_x, prev_time_iter)
+    u_y, integral_y, prev_error_y, prev_time = pid_control(t, dr_error[1], kPy, kIy, kDy, integral_y, prev_error_y, prev_time_iter)
+    u_z, integral_z, prev_error_z, prev_time = pid_control(t, dr_error[2], kPz, kIz, kDz, integral_z, prev_error_z, prev_time_iter)
+        
+    #print( "input_x: {}".format(u_x))
+
+    if u_x > u_x_thresh: u_x = u_x_max
+    elif u_x < -u_x_thresh: u_x = -u_x_max
+    else: u_x = 0
+    if u_y > u_y_thresh: u_y = u_y_max
+    elif u_y < -u_y_thresh: u_y = -u_y_max
+    else: u_y = 0
+    if u_z > u_z_thresh: u_z = u_z_max
+    elif u_z < -u_z_thresh: u_z = -u_z_max
+    else: u_z = 0
+
+   # print("time: {}".format(t), "ref point: {}".format(dr_ref),"prev point: {}".format(dr) , "input_x: {}".format(u_x))
+    #print( "input_x: {}".format(u_x))
+    print(t)
+    # Hill Eqns, Chaser
+    ddx_LVLH = 2 * n * dy_LVLH + 3 * n**2 * x_LVLH  + u_x
+    ddy_LVLH = -2 * n * dx_LVLH + u_y
+    ddz_LVLH = -n**2 * z_LVLH + u_z
+    a_LVLH = np.array([ddx_LVLH, ddy_LVLH, ddz_LVLH])
+    a_LVLH = a_LVLH + f # m/sec^2
+ 
+    stateVecDot[6:12] = dx_LVLH,dy_LVLH,dz_LVLH,a_LVLH[0],a_LVLH[1],a_LVLH[2]
+        
+    return stateVecDot
 
 ###############################################
 #                   INPUTS                    #
@@ -889,9 +991,9 @@ def T_ext_func(t): #define the thrust over time in body frame
    T3 = 0
    return np.array([T1, T2, T3])
 
-t = 4*60
+t = 20*60
 tspan = np.array([0, t]) #spans one minute (start and stop)
-dt = 1 #timestep in seconds
+dt = 0.1 #timestep in seconds
 
 triangleInequality(InertMat) #checks that the object exists
 theta0 = theta0 * 2*np.pi/360 #convert attitude to radians
@@ -995,18 +1097,26 @@ prev_error_pitch = 0
 integral_yaw = 0
 prev_error_yaw = 0
 
-kP_roll = 0
+kP_roll = 2*0.8
 kI_roll = 0
-kD_roll = 0
-kP_pitch = 0
+kD_roll = 2*0.1*40
+kP_pitch = 2*0.8
 kI_pitch = 0
-kD_pitch = 0
-kP_yaw = 0
+kD_pitch = 1*0.1*40
+kP_yaw = 2*0.8
 kI_yaw = 0
-kD_yaw = 0
+kD_yaw = 1*0.1*40
+
+u_roll_max = 10e-5 # m/sec^2
+u_pitch_max = 10e-5 # rad/sec^2
+u_yaw_max = 10e-5 # m/sec^2
+
+u_roll_thresh = 5e-5
+u_pitch_thresh = 5e-5
+u_yaw_thresh = 5e-5
 
 roll_ref = np.deg2rad(40)
-pitch_ref = np.deg2rad(40)
+pitch_ref = np.deg2rad(20)
 yaw_ref = np.deg2rad(40)
 C_ref = eulerToDCM(np.array([roll_ref,pitch_ref,yaw_ref]))
 q_ref = DCMtoQuaternion(C_ref)
@@ -1026,6 +1136,13 @@ isv[7:26] = rT_ECI0[0],rT_ECI0[1],rT_ECI0[2],vT_ECI0[0],vT_ECI0[1],vT_ECI0[2], r
 
 print(isv)
 
+isvREDUCED = np.zeros([12])
+isvREDUCED[0:3] = w0
+isvREDUCED[3:6] = theta0
+isvREDUCED[6:12] = rC_LVLH0[0],rC_LVLH0[1],rC_LVLH0[2],vC_LVLH0[0],vC_LVLH0[1],vC_LVLH0[2]
+
+#fullSolution = sc.integrate.solve_ivp(TrajandAttREDUCED, tspan, isvREDUCED, method='RK45', t_eval = t_eval, args=(T_ext_func,interp_dx,interp_dy,interp_dz), rtol=1e-15)
+
 fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, method='RK45', t_eval = t_eval, args=(T_ext_func,interp_dx,interp_dy,interp_dz), rtol=1e-10)
 
 #called it full solution because it contains lots of useless information
@@ -1033,6 +1150,12 @@ fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, method='RK45', t_e
 
 omegaVec = fullSolution.y[0:3, :] #the .y exctracts just the omegas over the tspan
 qs = fullSolution.y[3:7, :]
+# eulers = fullSolution.y[3:6]
+# r_LVLH_C = np.array([fullSolution.y[6], fullSolution.y[7], fullSolution.y[8]])
+# v_LVLH_C = np.array([fullSolution.y[9], fullSolution.y[10], fullSolution.y[11]])
+
+# r_LVLH_C = np.array([fullSolution.y[7], fullSolution.y[8], fullSolution.y[9]])
+# v_LVLH_C = np.array([fullSolution.y[10], fullSolution.y[11], fullSolution.y[12]])
 
 r_ECI_T = np.array([fullSolution.y[7], fullSolution.y[8], fullSolution.y[9]])
 v_ECI_T = np.array([fullSolution.y[10], fullSolution.y[11], fullSolution.y[12]])
@@ -1098,10 +1221,13 @@ for ii in range(0,len(qs[0,:])):
     euler_angs[:,ii] = roll,pitch,yaw
 
 plt.figure()
-plt.plot(t_eval,euler_angs[0,:], label="roll")
-plt.plot(t_eval,euler_angs[1,:], label="pitch")
-plt.plot(t_eval,euler_angs[2,:], label="yaw")
+plt.plot(t_eval,np.rad2deg(euler_angs[0,:]), label="roll")
+plt.plot(t_eval,np.rad2deg(euler_angs[1,:]), label="pitch")
+plt.plot(t_eval,np.rad2deg(euler_angs[2,:]), label="yaw")
+plt.xlabel("Time, sec")
+plt.ylabel("Angle, deg")
 plt.legend()
+plt.grid(True)
 
 #centroid = np.array([1,0,0])
 print(fullSolution.message)
