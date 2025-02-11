@@ -234,8 +234,6 @@ def DCMtoEuler(dcm):
             #same but for cosPitch == -1, taking into account numerical errors
             pitch = pi
         else:
-            print(sinPitch)
-            print(cosPitch)
             print("DCM to Euler error 1")
 
     elif sinPitch > 0:
