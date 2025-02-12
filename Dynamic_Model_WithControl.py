@@ -237,8 +237,6 @@ def DCMtoEuler(dcm):
             #same but for cosPitch == -1, taking into account numerical errors
             pitch = pi
         else:
-            print(sinPitch)
-            print(cosPitch)
             print("DCM to Euler error 1")
 
     elif sinPitch > 0:
@@ -786,10 +784,10 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     roll_err = roll_ref - roll
     pitch_err = pitch_ref - pitch
     yaw_err = yaw_ref - yaw
-    # q_err = q - q_ref
+    q_err = 1-norm(q)
     # C_err = quaternionToDCM(q_err)
     # roll_err, pitch_err, yaw_err = DCMtoEuler(C_err)
-    
+    print("Quaternion error: {}".format(q_err))
     print("roll: {}".format(roll), "pitch: {}".format(pitch), "yaw: {}".format(yaw))
     u_roll, integral_roll, prev_error_roll, prev_time = pid_control(t, roll_err, kP_roll, kI_roll, kD_roll, integral_roll, prev_error_roll, prev_time_iter)
     u_pitch, integral_pitch, prev_error_pitch, prev_time = pid_control(t, pitch_err, kP_pitch, kI_pitch, kD_pitch, integral_pitch, prev_error_pitch, prev_time_iter)
@@ -991,9 +989,9 @@ def T_ext_func(t): #define the thrust over time in body frame
    T3 = 0
    return np.array([T1, T2, T3])
 
-t = 20*60
+t = 5*60
 tspan = np.array([0, t]) #spans one minute (start and stop)
-dt = 0.1 #timestep in seconds
+dt = 0.01 #timestep in seconds
 
 triangleInequality(InertMat) #checks that the object exists
 theta0 = theta0 * 2*np.pi/360 #convert attitude to radians
@@ -1097,15 +1095,15 @@ prev_error_pitch = 0
 integral_yaw = 0
 prev_error_yaw = 0
 
-kP_roll = 2*0.8
+kP_roll = 1*0.8#2*0.8
 kI_roll = 0
-kD_roll = 2*0.1*40
-kP_pitch = 2*0.8
+kD_roll = 0.1*1*270#2*0.1*40
+kP_pitch = 1*0.8#2*0.8
 kI_pitch = 0
-kD_pitch = 1*0.1*40
-kP_yaw = 2*0.8
+kD_pitch = 0.1*1*270#1*0.1*40
+kP_yaw = 1*0.8#2*0.8
 kI_yaw = 0
-kD_yaw = 1*0.1*40
+kD_yaw = 0.1*1*270#1*0.1*40
 
 u_roll_max = 10e-5 # m/sec^2
 u_pitch_max = 10e-5 # rad/sec^2
@@ -1115,11 +1113,12 @@ u_roll_thresh = 5e-5
 u_pitch_thresh = 5e-5
 u_yaw_thresh = 5e-5
 
-roll_ref = np.deg2rad(40)
-pitch_ref = np.deg2rad(20)
+roll_ref = np.deg2rad(30)
+pitch_ref = np.deg2rad(50)
 yaw_ref = np.deg2rad(40)
 C_ref = eulerToDCM(np.array([roll_ref,pitch_ref,yaw_ref]))
 q_ref = DCMtoQuaternion(C_ref)
+
 ###############################################
 #                 PROCESSING                  #
 ###############################################

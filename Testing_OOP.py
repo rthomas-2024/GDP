@@ -1,8 +1,10 @@
 ﻿from SC_Architecture import Thruster, ReactionWheel, SpaceCraft
 import numpy as np
+from itertools import combinations
 
-az = 30
-el = 40
+
+az = 0
+el = 0
 Xs = 3
 Ys = 2
 Zs = 1
@@ -16,13 +18,13 @@ T5 = Thruster("Thruster5", np.array([[Xs/2,Ys/2,-Zs/2]]), np.array([[az, -el]]),
 T6 = Thruster("Thruster6", np.array([[Xs/2,-Ys/2,-Zs/2]]), np.array([[-az, -el]]), F_max)
 T7 = Thruster("Thruster7", np.array([[-Xs/2,-Ys/2,-Zs/2]]), np.array([[az, -(180-el)]]), F_max)
 T8 = Thruster("Thruster8", np.array([[-Xs/2,Ys/2,-Zs/2]]), np.array([[-az, -(180-el)]]), F_max)
-#T3 = Thruster("BIGTHRUSTER", np.array([[1,2,3]]), np.array([[6,1,1]]))
+
+##T3 = Thruster("BIGTHRUSTER", np.array([[1,2,3]]), np.array([[6,1,1]]))
 
 RW1 = ReactionWheel("ReactionWheel1", np.array([[0,0,0]]), np.array([[1,4]]), 10) # name, position, orientation
 #RW2 = ReactionWheel("ReactionWheel2", np.array([[1,1,1]]), np.array([[0,3,1]]))
 CubeSat = SpaceCraft("RAYWATCH", 10, np.array([[1,0,0],[0,1,0],[0,0,1]]), np.array([Xs, Ys, Zs]), [T1,T2,T3,T4,T5,T6,T7,T8], [RW1]) # name, mass, I, Thrusters, RWs, SC_geometry
 
-from itertools import combinations
 
 
 # def find_min_thruster_combination(T):
@@ -129,27 +131,22 @@ def find_min_thruster_combination(T):
 
 
 # Example usage
-#optimal_thrusters,optimal_thrusters_dic = find_min_thruster_combination(CubeSat.ThrustVectorMatrix)
 
 optimal_thrusters_dic = CubeSat.thruster_states_dic
 
-print(optimal_thrusters_dic["Fx"])
-print(optimal_thrusters_dic["-Fx"])
-print(optimal_thrusters_dic["Fy"])
-print(optimal_thrusters_dic["-Fy"])
-print(optimal_thrusters_dic["Fz"])
-print(optimal_thrusters_dic["-Fz"])
-print(optimal_thrusters_dic["Tx"])
-print(optimal_thrusters_dic["-Tx"])
-print(optimal_thrusters_dic["Ty"])
-print(optimal_thrusters_dic["-Ty"])
-print(optimal_thrusters_dic["Tz"])
-print(optimal_thrusters_dic["-Tz"])
+print("Fx: {}.".format(optimal_thrusters_dic["Fx"]))
+print("-Fx: {}.".format(optimal_thrusters_dic["-Fx"]))
+print("Fy: {}.".format(optimal_thrusters_dic["Fy"]))
+print("-Fy: {}.".format(optimal_thrusters_dic["-Fy"]))
+print("Fz: {}.".format(optimal_thrusters_dic["Fz"]))
+print("-Fz: {}.".format(optimal_thrusters_dic["-Fz"]))
+print("Tx: {}.".format(optimal_thrusters_dic["Tx"]))
+print("-Tx: {}.".format(optimal_thrusters_dic["-Tx"]))
+print("Ty: {}.".format(optimal_thrusters_dic["Ty"]))
+print("-Ty: {}.".format(optimal_thrusters_dic["-Ty"]))
+print("Tz: {}.".format(optimal_thrusters_dic["Tz"]))
+print("-Tz: {}.".format(optimal_thrusters_dic["-Tz"]))
 
-# if optimal_thrusters is not None:
-#     print("Optimal thrusters to activate:", optimal_thrusters)
-# else:
-#     print("No valid thruster configuration found.")
 
 CubeSat.DrawSpaceCraft(DRAW_THRUSTERS=1)
 print(CubeSat)
