@@ -43,7 +43,6 @@ p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
 gantry = p.loadURDF("Gantry.urdf", basePosition=np.array([0,0,0]))
 
 findJointsToAnimate()
-
 yaxisPrismaticJointIndex = 6
 zaxisPrismaticJointIndex = 7
 gimbalFramePrismaticJointIndex = 8
