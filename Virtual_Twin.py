@@ -93,7 +93,7 @@ gimbalFramePosPlt = np.zeros([numSteps])
 for i in range(numSteps):
     yaxisPosPlt[i], zaxisPosPlt[i], gimbalFramePosPlt[i] = definePosition(t_eval[i])
 
-#first assign the correct joint number to each joint
+#ssign the correct joint number to each joint
 findJointsToAnimate()
 yaxisPrismaticJointIndex = 6
 zaxisPrismaticJointIndex = 7
