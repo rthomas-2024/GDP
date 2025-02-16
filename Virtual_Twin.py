@@ -83,6 +83,15 @@ gantry = p.loadURDF("Gantry.urdf", basePosition=np.array([0,0,0]))
 ###############################################
 #                 PROCESSING                  #
 ###############################################
+
+#initialise plotting position arrays
+yaxisPosPlt = np.zeros([numSteps])
+xaxisPosPlt = np.zeros([numSteps])
+gimbalFramePosPlt = np.zeros([numSteps])
+
+for t in t_eval:
+
+
 #first assign the correct joint number to each joint
 findJointsToAnimate()
 yaxisPrismaticJointIndex = 6
