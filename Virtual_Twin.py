@@ -84,34 +84,40 @@ gimbalFramePosPlt = np.zeros([numSteps])
 for i in range(numSteps):
     yaxisPosPlt[i], zaxisPosPlt[i], gimbalFramePosPlt[i] = definePosition(t_eval[i])
 
-
+#the previous loop fills the whole
 
 ###############################################
 #                  PLOTTING                   #
 ###############################################
 fig1, axs = plt.subplots(2, 2, figsize=(15,10))
 ax1 = axs[0,0] #yaxis position
-ax1 = axs[0,1] #zaxis position
-ax1 = axs[1,0] #gimbal frame position
-ax1 = axs[1,1] #spare for now
+ax2 = axs[0,1] #zaxis position
+ax3 = axs[1,0] #gimbal frame position
+ax4 = axs[1,1] #spare for now
 
 ax1.set_title("y-axis Position")
-ax1.plot(t_eval, yaxisPosPlt, color="b")
+ax1.plot(t_eval, yaxisPosPlt, "r--")
 ax1.grid()
 ax1.set_xlabel("Time (s)")
 ax1.set_ylabel("Displacement from origin (m)")
+ax1.set_xlim(0,10)
+ax1.set_ylim(-1.5, 1.5)
 
-ax1.set_title("z-axis Position")
-ax1.plot(t_eval, yaxisPosPlt, color="b")
-ax1.grid()
-ax1.set_xlabel("Time (s)")
-ax1.set_ylabel("Displacement from origin (m)")
+ax2.set_title("z-axis Position")
+ax2.plot(t_eval, zaxisPosPlt, "g--")
+ax2.grid()
+ax2.set_xlabel("Time (s)")
+ax2.set_ylabel("Displacement from origin (m)")
+ax2.set_xlim(0,10)
+ax2.set_ylim(-1.5, 1.5)
 
-ax1.set_title("Gimbal Frame Position")
-ax1.plot(t_eval, yaxisPosPlt, color="b")
-ax1.grid()
-ax1.set_xlabel("Time (s)")
-ax1.set_ylabel("Displacement from origin (m)")
+ax3.set_title("Gimbal Frame Position")
+ax3.plot(t_eval, gimbalFramePosPlt, "b--")
+ax3.grid()
+ax3.set_xlabel("Time (s)")
+ax3.set_ylabel("Displacement from origin (m)")
+ax3.set_xlim(0,10)
+ax3.set_ylim(-1.5, 1.5)
 
 plt.subplots_adjust(wspace=0.25, hspace=0.3)
 plt.show()
