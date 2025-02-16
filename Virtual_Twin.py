@@ -24,7 +24,7 @@ def definePosition(t):
     gimbalFramePos = 0.2*np.sin(t)
 
     return yaxisPos, zaxisPos, gimbalFramePos
-def animateSystem(dt, tmax):
+def animateSystem(tmax):
     #get the simulation start time to ensure the simulation only runs for tmax amount of time
     simulationStart = time.time()
 
@@ -56,7 +56,7 @@ def animateSystem(dt, tmax):
                                 targetPosition=gimbalFramePos)
 
         p.stepSimulation()
-        time.sleep(dt)
+        time.sleep(1/240) #max refresh rate of pybullet, not necessarily same timestep as is used for plotting but of course same function
 
 
 
@@ -103,7 +103,7 @@ animate = True #do we want to animate (control), or move with mouse
 
 if animate:
     #call the animate function here
-    animateSystem(dt, tmax)
+    animateSystem(tmax)
 else:
     p.setRealTimeSimulation(1)
     while True:
