@@ -86,11 +86,12 @@ gantry = p.loadURDF("Gantry.urdf", basePosition=np.array([0,0,0]))
 
 #initialise plotting position arrays
 yaxisPosPlt = np.zeros([numSteps])
-xaxisPosPlt = np.zeros([numSteps])
+zaxisPosPlt = np.zeros([numSteps])
 gimbalFramePosPlt = np.zeros([numSteps])
 
-for t in t_eval:
-
+#fill position plotting arrays
+for i in range(numSteps):
+    yaxisPosPlt[i], zaxisPosPlt[i], gimbalFramePosPlt[i] = definePosition(t_eval[i])
 
 #first assign the correct joint number to each joint
 findJointsToAnimate()
