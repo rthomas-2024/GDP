@@ -70,15 +70,6 @@ numSteps = int(tmax/dt) + 1
 t_eval = np.linspace(0, tmax, numSteps)
 
 
-###############################################
-#                PYBULLET SETUP               #
-###############################################
-p.connect(p.GUI)
-p.setGravity(0,0,-9.81)
-p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0) #not showing GUI to make animations look nicer
-
-gantry = p.loadURDF("Gantry.urdf", basePosition=np.array([0,0,0]))
-
 
 ###############################################
 #                 PROCESSING                  #
@@ -93,7 +84,48 @@ gimbalFramePosPlt = np.zeros([numSteps])
 for i in range(numSteps):
     yaxisPosPlt[i], zaxisPosPlt[i], gimbalFramePosPlt[i] = definePosition(t_eval[i])
 
-#ssign the correct joint number to each joint
+
+
+###############################################
+#                  PLOTTING                   #
+###############################################
+fig1, axs = plt.subplots(2, 2, figsize=(15,10))
+ax1 = axs[0,0] #yaxis position
+ax1 = axs[0,1] #zaxis position
+ax1 = axs[1,0] #gimbal frame position
+ax1 = axs[1,1] #spare for now
+
+ax1.set_title("y-axis Position")
+ax1.plot(t_eval, yaxisPosPlt, color="b")
+ax1.grid()
+ax1.set_xlabel("Time (s)")
+ax1.set_ylabel("Displacement from origin (m)")
+
+ax1.set_title("z-axis Position")
+ax1.plot(t_eval, yaxisPosPlt, color="b")
+ax1.grid()
+ax1.set_xlabel("Time (s)")
+ax1.set_ylabel("Displacement from origin (m)")
+
+ax1.set_title("Gimbal Frame Position")
+ax1.plot(t_eval, yaxisPosPlt, color="b")
+ax1.grid()
+ax1.set_xlabel("Time (s)")
+ax1.set_ylabel("Displacement from origin (m)")
+
+plt.subplots_adjust(wspace=0.25, hspace=0.3)
+plt.show()
+
+###############################################
+#                  PYBULLET                   #
+###############################################
+p.connect(p.GUI)
+p.setGravity(0,0,-9.81)
+p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0) #not showing GUI to make animations look nicer
+
+gantry = p.loadURDF("Gantry.urdf", basePosition=np.array([0,0,0]))
+
+#assign the correct joint number to each joint
 findJointsToAnimate()
 yaxisPrismaticJointIndex = 6
 zaxisPrismaticJointIndex = 7
@@ -110,6 +142,3 @@ else:
         pass
 
 
-###############################################
-#                  PLOTTING                   #
-###############################################
