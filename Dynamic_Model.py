@@ -596,11 +596,12 @@ def TrajandAtt(t,stateVec,T_ext_func):
     omega1, omega2, omega3 = omega
     T1, T2, T3 = T_ext_func(t)
 
-    dw1dt = (T1 - (I33-I22)*omega2*omega3) / I11
-    dw2dt = (T2 - (I11-I33)*omega1*omega3) / I22
-    dw3dt = (T3 - (I22-I11)*omega2*omega1) / I33
+    T_vec = np.array([T1, T2, T3])
+    omega_vec = np.array([omega1, omega2, omega3])
 
-    omegaDot = np.array([dw1dt, dw2dt, dw3dt]) #returns the dw/dt full vector
+    I_mult_omegaDot = T_vec-np.cross(omega_vec, I @ omega_vec)
+    omegaDot = np.linalg.inv(I) @ I_mult_omegaDot #returns the dw/dt full vector
+
     qDot = getAmat(omega) @ q
 
     stateVecDot = np.zeros([25])

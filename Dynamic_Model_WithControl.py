@@ -769,9 +769,6 @@ def pid_control(t, error, Kp, Ki, Kd, integral,previous_error, previous_time):
 # COMBINED DIFFERENTIAL EQUATION
 def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     #I is the full inertial matrix, and omega is an angular velocity vector
-    I11 = InertMat[0,0]
-    I22 = InertMat[1,1]
-    I33 = InertMat[2,2]
 
     omega = stateVec[0:3]
     q = stateVec[3:7]
@@ -808,11 +805,13 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     omega1, omega2, omega3 = omega
     #T1, T2, T3 = T_ext_func(t)
     T_control = np.dot(InertMat.T, np.array([u_roll,u_pitch,u_yaw]))
-    dw1dt = (T_control[0] - (I33-I22)*omega2*omega3) / I11
-    dw2dt = (T_control[1] - (I11-I33)*omega1*omega3) / I22
-    dw3dt = (T_control[2] - (I22-I11)*omega2*omega1) / I33
 
-    omegaDot = np.array([dw1dt, dw2dt, dw3dt]) #returns the dw/dt full vector
+    T_vec = np.array([T_control[0], T_control[1], T_control[2]])
+    omega_vec = np.array([omega1, omega2, omega3])
+
+    I_mult_omegaDot = T_vec-np.cross(omega_vec, I @ omega_vec)
+    omegaDot = np.linalg.inv(I) @ I_mult_omegaDot #returns the dw/dt full vector
+
     qDot = getAmat(omega) @ q
 
     stateVecDot = np.zeros([25])
@@ -888,10 +887,6 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     return stateVecDot
 def TrajandAttREDUCED(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     #I is the full inertial matrix, and omega is an angular velocity vector
-    I11 = InertMat[0,0]
-    I22 = InertMat[1,1]
-    I33 = InertMat[2,2]
-
     omega = stateVec[0:3]
     roll,pitch,yaw = stateVec[3:6]
 
@@ -922,11 +917,12 @@ def TrajandAttREDUCED(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     omega1, omega2, omega3 = omega
     #T1, T2, T3 = T_ext_func(t)
     T_control = np.dot(InertMat.T, np.array([u_roll,u_pitch,u_yaw]))
-    dw1dt = (T_control[0] - (I33-I22)*omega2*omega3) / I11
-    dw2dt = (T_control[1] - (I11-I33)*omega1*omega3) / I22
-    dw3dt = (T_control[2] - (I22-I11)*omega2*omega1) / I33
+    T_vec = np.array([T_control[0], T_control[1], T_control[2]])
+    omega_vec = np.array([omega1, omega2, omega3])
 
-    omegaDot = np.array([dw1dt, dw2dt, dw3dt]) #returns the dw/dt full vector
+    I_mult_omegaDot = T_vec-np.cross(omega_vec, I @ omega_vec)
+    omegaDot = np.linalg.inv(I) @ I_mult_omegaDot #returns the dw/dt full vector
+
     #qDot = getAmat(omega) @ q
 
     stateVecDot = np.zeros([12])
