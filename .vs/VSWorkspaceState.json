@@ -1,7 +1,8 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\__pycache__"
   ],
-  "SelectedNode": "\\Dynamic_Model_WithControl.py",
+  "SelectedNode": "\\Testing_OOP.py",
   "PreviewInSolutionExplorer": false
 }
