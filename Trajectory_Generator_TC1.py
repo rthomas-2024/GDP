@@ -1,6 +1,7 @@
 ###############################################
 #                  IMPORTS                    #
 ###############################################
+from math import degrees, radians
 import numpy as np
 from numpy import sin as s
 from numpy import cos as c
@@ -836,15 +837,7 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     aT_ECI = np.array([ddxT_ECI, ddyT_ECI, ddzT_ECI])
 
     rT = rT_ECI
-    
-    if 1<t<50:
-        f = np.array([f_x, f_y, f_z]) # km/sec^2
-        f_ECI, IGNORE = LVLH2ECI(rT,np.array([ dxT_ECI, dyT_ECI, dzT_ECI]),f,f)
-        #print("FIRING, time =", t)
-    else:
-        f = np.array([0,0,0])
-        f_ECI = np.array([0,0,0])
-        
+          
     # Trajectory Control
     dr = np.array([x_LVLH, y_LVLH, z_LVLH])
     dr_ref = interpolate_3d(interp_dx,interp_dy,interp_dz, t)
@@ -874,7 +867,6 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     ddy_LVLH = -2 * n * dx_LVLH + u_y
     ddz_LVLH = -n**2 * z_LVLH + u_z
     a_LVLH = np.array([ddx_LVLH, ddy_LVLH, ddz_LVLH])
-    a_LVLH = a_LVLH + f # m/sec^2
 
     # 2 body acceleration, Chaser
     r_ECI = np.array([x_ECI, y_ECI, z_ECI])
@@ -882,7 +874,6 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     ddy_ECI = (-mu/(np.linalg.norm(r_ECI)**3)) * y_ECI
     ddz_ECI = (-mu/(np.linalg.norm(r_ECI)**3)) * z_ECI
     a_ECI = np.array([ddx_ECI, ddy_ECI, ddz_ECI])
-    a_ECI = a_ECI + f_ECI/1000 # km/sec^2
     
     stateVecDot[7:25] = dxT_ECI,dyT_ECI,dzT_ECI,aT_ECI[0],aT_ECI[1],aT_ECI[2], dx_ECI,dy_ECI,dz_ECI,a_ECI[0],a_ECI[1],a_ECI[2], dx_LVLH,dy_LVLH,dz_LVLH,a_LVLH[0],a_LVLH[1],a_LVLH[2]
         
@@ -981,8 +972,8 @@ def TrajandAttREDUCED(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
 #                   INPUTS                    #
 ###############################################
 InertMat = np.array([[1,0,0], [0,1,0],[0,0,1]]) #inertial matrix
-w0 = np.array([0.00,0.00,0.00]) #initial angular velocity
-theta0 = np.array([0,0,0]) #initial attitude in degrees (roll, pitch, yaw)
+w0 = np.array([np.deg2rad(0),np.deg2rad(0.1),np.deg2rad(0)]) #initial angular velocity
+theta0 = np.array([30,20,10]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in body frame
    T1 = 0
@@ -990,7 +981,7 @@ def T_ext_func(t): #define the thrust over time in body frame
    T3 = 0
    return np.array([T1, T2, T3])
 
-t = 50
+t = 60
 tspan = np.array([0, t]) #spans one minute (start and stop)
 dt = 0.01 #timestep in seconds
 
@@ -1011,66 +1002,31 @@ n = 2*np.pi / tau # mean motion
 
 rT_ECI0, vT_ECI0 = sv_from_coe([a, e, RAAN, I, AOP, f], mu) # state vector of target sc, initially
 
-f_x = 0  # forces/unit mass to be applied. km/sec^2
-f_y = 0  
-f_z = 0  
-
 # Chaser ICs
 x0 = 1.5
-y0 = 0
-z0 = 0
+y0 = -0.2
+z0 = 0.2
 dx0 = 0
 dy0 = 0
 dz0 = 0
 
 rC_LVLH0 = np.array([x0, y0, z0])
-vC_LVLH0 = cw_docking_v0(rC_LVLH0, t, n)
+dr1 = np.array([0.5,0,0]) # end position
+vC_LVLH0 = cw_calc_dv0(rC_LVLH0,dr1, t, n)
 rCrel_ECI0, vCrel_ECI0 = LVLH2ECI(rT_ECI0, vT_ECI0, rC_LVLH0, vC_LVLH0)
 rC_ECI0 = rCrel_ECI0/1000 + rT_ECI0 # chaser position in ECI, in km
 vC_ECI0 = vCrel_ECI0/1000 + vT_ECI0 # in km/sec
 
-
-#########################
-# Planning a trajectory #
-#########################
-# MORE COMPLEX TRAJECTORY
-dr0 = np.array([x0,y0,z0])
-dv0 = np.array([0,0,0])
-# NumWPs = 5
-# dr1 = np.array([1,0,0])
-# dr2 = np.array([0.8,-0.07,-0.06])
-# dr3 = np.array([0.3,0.02,0.01])
-# dr4 = np.array([0.1,0,0])
-# dr5 = np.array([0,0,0])
-# t01 = t*0.3
-# t12 = t*0.3
-# t23 = t*0.2
-# t34 = t*0.1
-# t45 = t*0.1
-# drvec = np.array([dr1,dr2,dr3,dr4,dr5])
-# tvec = np.array([t01,t12,t23,t34,t45])
-# # This is the planned trajectory
-# Traj, deltavs = PlanTrajectory(NumWPs, drvec, tvec, dr0, dv0, dt) # Traj has ith row: drx,dry,drz,dvx,dvy,dvz,t
-
-# SIMPLE TRAJECTORY
+dr0 = rC_LVLH0
+dv0 = vC_LVLH0
 NumWPs = 1
-dr1 = np.array([1,0,0])
-dr2 = np.array([0.8,-0.07,-0.06])
-dr3 = np.array([0.3,0.02,0.01])
-dr4 = np.array([0.1,0,0])
-dr5 = np.array([0,0,0])
-t01 = t*0.3
-t12 = t*0.3
-t23 = t*0.2
-t34 = t*0.1
-t45 = t*0.1
-drvec = np.array([dr5])
+drvec = np.array([dr1])
 tvec = np.array([t])
 # This is the planned trajectory
 Traj, deltavs = PlanTrajectory(NumWPs, drvec, tvec, dr0, dv0, dt) # Traj has ith row: drx,dry,drz,dvx,dvy,dvz,t
 
 # Define Pyramid geometry
-base = [(1.5, 0.2, 0.2), (1.5, -0.2, 0.2), (1.5, -0.2, -0.2), (1.5, 0.2, -0.2)]
+base = [(1.5, 0.4, 0.4), (1.5, -0.4, 0.4), (1.5, -0.4, -0.4), (1.5, 0.4, -0.4)]
 apex = (0,0,0)
 # Find points outside pyramid
 results = check_points_in_pyramid(Traj[:,0:3], base, apex)
@@ -1089,15 +1045,15 @@ integral_z = 0
 prev_error_z = 0
 prev_time = 0
 
-kPx = 4
+kPx = 0#4
 kIx = 0
-kDx = 1
-kPy = 4
+kDx = 0#1
+kPy = 0#4
 kIy = 0
-kDy = 1
-kPz = 4
+kDy = 0#1
+kPz = 0#4
 kIz = 0
-kDz = 1
+kDz = 0#1
 
 u_x_max = 10e-3 # m/sec^2
 u_y_max = 10e-3 # m/sec^2
@@ -1115,15 +1071,15 @@ prev_error_pitch = 0
 integral_yaw = 0
 prev_error_yaw = 0
 
-kP_roll = 1*0.8#2*0.8
+kP_roll = 0#1*0.8#2*0.8
 kI_roll = 0
-kD_roll = 0.1*1*270#2*0.1*40
-kP_pitch = 1*0.8#2*0.8
+kD_roll = 0#0.1*1*270#2*0.1*40
+kP_pitch = 0#1*0.8#2*0.8
 kI_pitch = 0
-kD_pitch = 0.1*1*270#1*0.1*40
-kP_yaw = 1*0.8#2*0.8
+kD_pitch = 0#0.1*1*270#1*0.1*40
+kP_yaw = 0#1*0.8#2*0.8
 kI_yaw = 0
-kD_yaw = 0.1*1*270#1*0.1*40
+kD_yaw = 0#0.1*1*270#1*0.1*40
 
 u_roll_max = 10e-5 # m/sec^2
 u_pitch_max = 10e-5 # rad/sec^2
@@ -1147,35 +1103,14 @@ q0 = DCMtoQuaternion(eulerToDCM(theta0)) #get intial quaternion
 
 #initialise the initial state vector (made up of angular velos and quaternions at each timestep)
 isv = np.zeros([25])
-
-#fill initial state vector
 isv[0:3] = w0
 isv[3:7] = q0
 isv[7:26] = rT_ECI0[0],rT_ECI0[1],rT_ECI0[2],vT_ECI0[0],vT_ECI0[1],vT_ECI0[2], rC_ECI0[0],rC_ECI0[1],rC_ECI0[2],vC_ECI0[0],vC_ECI0[1],vC_ECI0[2], rC_LVLH0[0],rC_LVLH0[1],rC_LVLH0[2],vC_LVLH0[0],vC_LVLH0[1],vC_LVLH0[2]
 
-print(isv)
-
-isvREDUCED = np.zeros([12])
-isvREDUCED[0:3] = w0
-isvREDUCED[3:6] = theta0
-isvREDUCED[6:12] = rC_LVLH0[0],rC_LVLH0[1],rC_LVLH0[2],vC_LVLH0[0],vC_LVLH0[1],vC_LVLH0[2]
-
-#fullSolution = sc.integrate.solve_ivp(TrajandAttREDUCED, tspan, isvREDUCED, method='RK45', t_eval = t_eval, args=(T_ext_func,interp_dx,interp_dy,interp_dz), rtol=1e-15)
-
 fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, method='RK45', t_eval = t_eval, args=(T_ext_func,interp_dx,interp_dy,interp_dz), rtol=1e-10)
-
-#called it full solution because it contains lots of useless information
-#we just want how state vector changes over time
 
 omegaVec = fullSolution.y[0:3, :] #the .y exctracts just the omegas over the tspan
 qs = fullSolution.y[3:7, :]
-# eulers = fullSolution.y[3:6]
-# r_LVLH_C = np.array([fullSolution.y[6], fullSolution.y[7], fullSolution.y[8]])
-# v_LVLH_C = np.array([fullSolution.y[9], fullSolution.y[10], fullSolution.y[11]])
-
-# r_LVLH_C = np.array([fullSolution.y[7], fullSolution.y[8], fullSolution.y[9]])
-# v_LVLH_C = np.array([fullSolution.y[10], fullSolution.y[11], fullSolution.y[12]])
-
 r_ECI_T = np.array([fullSolution.y[7], fullSolution.y[8], fullSolution.y[9]])
 v_ECI_T = np.array([fullSolution.y[10], fullSolution.y[11], fullSolution.y[12]])
 r_ECI_C = np.array([fullSolution.y[13], fullSolution.y[14], fullSolution.y[15]])
@@ -1183,43 +1118,30 @@ v_ECI_C = np.array([fullSolution.y[16], fullSolution.y[17], fullSolution.y[18]])
 r_LVLH_C = np.array([fullSolution.y[19], fullSolution.y[20], fullSolution.y[21]])
 v_LVLH_C = np.array([fullSolution.y[22], fullSolution.y[23], fullSolution.y[24]])
 
-print(r_LVLH_C)
+t_eval = fullSolution.t
 
-# FOR DEMONSTRATION ONLY!!!!! ############################
-rolls = np.linspace(-75, 0, len(t_eval))
-pitchs = np.linspace(-180, 0, len(t_eval))
-yaws = np.linspace(-60, 0, len(t_eval))
+rollVec = np.zeros([len(qs[0,:]),1])
+pitchVec = np.zeros([len(qs[0,:]),1])
+yawVec = np.zeros([len(qs[0,:]),1])
+rollrateVec = np.zeros([len(qs[0,:]),1])
+pitchrateVec = np.zeros([len(qs[0,:]),1])
+yawrateVec = np.zeros([len(qs[0,:]),1])
 
-# Stack Euler angles into a single array (shape: t_eval x 3)
-euler_angles = np.stack((rolls, pitchs, yaws), axis=1)
-
-# Convert Euler angles (degrees) to quaternions
-# qs = R.from_euler('xyz', euler_angles, degrees=True).as_quat()
-# qs = qs.T
-# # DELETE EVERYTHING ABOVE UP TO THE DEMONSTRATION LINE. THIS IS NOT PROPER SPACE DYNAMICS
-
+# convert to degrees
+for ii in range(0,len(qs[0,:])):
+    C = quaternionToDCM(qs[:,ii])
+    r, p, y = DCMtoEuler(C)
+    rollVec[ii] = np.rad2deg(r)
+    pitchVec[ii] = np.rad2deg(p)
+    yawVec[ii] = np.rad2deg(y)
+    rollrateVec[ii] = np.rad2deg(omegaVec[0,ii])
+    pitchrateVec[ii] = np.rad2deg(omegaVec[1,ii])
+    yawrateVec[ii] = np.rad2deg(omegaVec[2,ii])
 
 #find the error in the norm of the quaternions from 1
 qErr = np.zeros([len(qs[0,:])])
-
 for i in range(len(qs[0,:])):
     qErr[i] = 1 - norm(qs[:,i])
-
-
-#find the thrust values over time
-T1s = [T_ext_func(t)[0] for t in t_eval]
-T2s = [T_ext_func(t)[1] for t in t_eval]
-T3s = [T_ext_func(t)[2] for t in t_eval]
-
-#TRAJECORY SOLVING
-# r_ECI_C = np.zeros(r_LVLH_C.shape)
-# v_ECI_C = np.zeros(r_LVLH_C.shape)
-# ii = 0
-# for t in t_eval:
-#     r_ECI_Cii, v_ECI_Cii = LVLH2ECI(r_LVLH_C[:,ii], v_LVLH_C[:,ii], r_ECI_T[:,ii], v_ECI_T[:,ii])
-#     r_ECI_C[:,ii] = (r_ECI_Cii/1000 + r_ECI_T[:,ii]) # all in km now
-#     v_ECI_C[:,ii] = (v_ECI_Cii/1000 + v_ECI_T[:,ii])
-#     ii = ii + 1
 
 
 ###############################################
@@ -1230,108 +1152,43 @@ matplotlibPlt = False
 pybulletPlt = True
 acc = 30 #accelerates the time for the dynamic plotting
 
-euler_angs = np.zeros([3,len(qs[0,:])])
-for ii in range(0,len(qs[0,:])):
-    q = qs[:,ii]
-    print(q)
-    C = quaternionToDCM(q)
-    roll, pitch, yaw = DCMtoEuler(C)
-    print("roll: {}".format(roll), "pitch: {}".format(pitch), "yaw: {}".format(yaw))
-    euler_angs[:,ii] = roll,pitch,yaw
-
-plt.figure()
-plt.plot(t_eval,np.rad2deg(euler_angs[0,:]), label="roll")
-plt.plot(t_eval,np.rad2deg(euler_angs[1,:]), label="pitch")
-plt.plot(t_eval,np.rad2deg(euler_angs[2,:]), label="yaw")
-plt.xlabel("Time, sec")
-plt.ylabel("Angle, deg")
-plt.legend()
-plt.grid(True)
 
 #centroid = np.array([1,0,0])
 print(fullSolution.message)
 if diagnosticsPlt:
-    #PLOT STATES (DIAGNOSTICS)
-    fig1, axs = plt.subplots(2, 2, figsize=(15,10))
-    ax1 = axs[0,1] #w
-    ax2 = axs[1,0] #q
-    ax3 = axs[1,1] #qErr
-    ax4 = axs[0,0] #T
+    # Create a figure with two axes side by side
+    fig1, axs = plt.subplots(1, 2, figsize=(15, 5))  # 1 row, 2 columns
 
-    #plot angular velocities
-    ax1.set_title('Angular Velocity Variation (Body Frame)')
-    ax1.plot(t_eval, omegaVec[0], color = 'b', label='omega_x')
-    ax1.plot(t_eval, omegaVec[1], color = 'r', label='omega_y')
-    ax1.plot(t_eval, omegaVec[2], color = 'g', label='omega_z')
+    ax1 = axs[0]  # First subplot (Angular velocity)
+    ax2 = axs[1]  # Second subplot (Quaternion variation)
+
+    # Plot angular velocities
+    ax1.set_title('Angular Velocity Variation')
+    ax1.plot(t_eval, omegaVec[0], color='b', label='omega_x')
+    ax1.plot(t_eval, omegaVec[1], color='r', label='omega_y')
+    ax1.plot(t_eval, omegaVec[2], color='g', label='omega_z')
     ax1.grid()
-    ax1.set_xlabel('time (s)')
-    ax1.set_ylabel('angular velocity (rad/s)')
+    ax1.set_xlabel('Time (s)')
+    ax1.set_ylabel('Angular Velocity (deg/s)')
     ax1.legend()
 
-    #plot quaternions
-    ax2.set_title('Quaternion Variation')
-    ax2.plot(t_eval, qs[0,:], color='b', label='q0')
-    ax2.plot(t_eval, qs[1,:], color='r', label='q1')
-    ax2.plot(t_eval, qs[2,:], color='g', label='q2')
-    ax2.plot(t_eval, qs[3,:], color='m', label='q3')
+    # Plot quaternions
+    ax2.set_title('Euler Angle Variation')
+    ax2.plot(t_eval, rollVec, color='b', label='Roll')
+    ax2.plot(t_eval, pitchVec, color='r', label='Pitch')
+    ax2.plot(t_eval, yawVec, color='g', label='Yaw')
     ax2.grid()
-    ax2.set_xlabel('time (s)')
-    ax2.set_ylabel('Quaternions')
+    ax2.set_xlabel('Time (s)')
+    ax2.set_ylabel('Angle, deg')
     ax2.legend()
 
-    #plot quaternion error (absolute)
-    ax3.set_title('Quaternion Error Variation (Absolute)')
-    ax3.plot(t_eval, qErr)
-    ax3.grid()
-    ax3.set_xlabel("Time (s)")
-    ax3.set_ylabel("Quaternion Norm Error (Absolute)")
-
-    #plot thrust
-    ax4.set_title('Thrust Variation')
-    ax4.plot(t_eval, T1s, color='b', label='T1')
-    ax4.plot(t_eval, T2s, color='r', label='T2')
-    ax4.plot(t_eval, T3s, color='g', label='T3')
-    ax4.grid()
-    ax4.set_xlabel('Time (s)')
-    ax4.set_ylabel('Thrust (N)')
-    ax4.legend()
-
-    plt.subplots_adjust(wspace=0.25, hspace=0.3)
+    plt.subplots_adjust(wspace=0.3)  # Adjust horizontal spacing
     #plt.show()
 
 
 #### --------------------------------------------------------------------------------------------------------------------------------------------------------------
 #  TRAJECTORY Plotting
 # #### --------------------------------------------------------------------------------------------------------------------------------------------------------------
-# Plot in LVLH:
-# fig = plt.figure(figsize=(8, 4))
-# ax1 = fig.add_subplot(1,2,1)
-# ax1.scatter(0, 0, s=100, marker='.', c='k', label='Origin')
-# ax1.plot(r_LVLH_C[0], r_LVLH_C[1], c='b')
-
-# ax1.set_xlabel('X (R-bar), m')
-# ax1.set_ylabel('Y (V-bar), m')
-
-# # ax1 = fig.add_subplot(1,2,1, projection='3d')
-# # ax1.scatter(0, 0, 0, s=100, marker='.', c='k', label="Origin")
-
-# # plotTraj(sol_LVLH.y[0], sol_LVLH.y[1], sol_LVLH.y[2], "LVLH", 'b', ax1)
-
-# # ax1.set_xlabel('X, m')
-# # ax1.set_ylabel('Y, m')
-# # ax1.set_zlabel('Z, m')
-# # ax1.tick_params(axis='x', labelsize=10)
-# # ax1.tick_params(axis='y', labelsize=10)
-# # ax1.tick_params(axis='z', labelsize=10)
-
-# # ax1.set_xlim([-np.max(abs(r_LVLH_C[0,:])), np.max(abs(r_LVLH_C[0,:]))])
-# # ax1.set_ylim([-np.max(abs(r_LVLH_C)), np.max(abs(r_LVLH_C))])
-# # ax1.set_zlim([-np.max(abs(r_LVLH_C)), np.max(abs(r_LVLH_C))])
-# ax1.set_title("LVLH Frame, {} orbits".format(round(t/tau,2)))
-# plt.grid(True)
-# plot_pyramid_with_points(base, apex, results,ax1)
-# ax1.legend()
-
 # plot in lvlh:
 fig = plt.figure(figsize=(8, 4))
 ax1 = fig.add_subplot(111, projection='3d')
@@ -1348,98 +1205,80 @@ ax1.set_title("lvlh frame, {} orbits".format(round(t/tau,2)))
 plt.grid(True)
 ax1.legend()
 plot_pyramid_with_points(base, apex, results,ax1)
+
+
+
+
+if diagnosticsPlt:
+    # Create a figure with 6 axes (2 rows, 3 columns)
+    fig2, axs = plt.subplots(2, 3, figsize=(15, 10))  
+
+    ax1 = axs[0, 0]  # Angular Velocity
+    ax2 = axs[0, 1]  # Euler Angles
+    ax3 = axs[0, 2]  # Quaternion Norm Error
+    ax4 = axs[1, 0]  # Control Torques
+    ax5 = axs[1, 1]  # Angular Momentum
+    ax6 = axs[1, 2]  # Energy Variation
+
+    ax1.set_title('Chaser Position, x')
+    ax1.plot(t_eval, r_LVLH_C[0], color='b')
+    ax1.grid()
+    ax1.set_xlabel('Time (s)')
+    ax1.set_ylabel('Chaser Position, x (m)')
+
+    ax2.set_title('Chaser Position, y')
+    ax2.plot(t_eval, r_LVLH_C[1], color='r')
+    ax2.grid()
+    ax2.set_xlabel('Time (s)')
+    ax2.set_ylabel('Chaser Position, y (m)')
+
+    ax3.set_title('Chaser Position, z')
+    ax3.plot(t_eval, r_LVLH_C[2], color='k')
+    ax3.grid()
+    ax3.set_xlabel('Time (s)')
+    ax3.set_ylabel('Chaser Position, z (m)')
+
+    ax4.set_title('Chaser Velocity, x')
+    ax4.plot(t_eval, v_LVLH_C[0], color='b')
+    ax4.grid()
+    ax4.set_xlabel('Time (s)')
+    ax4.set_ylabel('Chaser Position, x (m/s)')
+
+    ax5.set_title('Chaser Velocity, y')
+    ax5.plot(t_eval, v_LVLH_C[1], color='r')
+    ax5.grid()
+    ax5.set_xlabel('Time (s)')
+    ax5.set_ylabel('Chaser Position, y (m/s)')
+
+    ax6.set_title('Chaser Velocity, z')
+    ax6.plot(t_eval, v_LVLH_C[2], color='k')
+    ax6.grid()
+    ax6.set_xlabel('Time (s)')
+    ax6.set_ylabel('Chaser Position, z(m/s)')
+
+    # Adjust spacing between plots
+    plt.subplots_adjust(wspace=0.4, hspace=0.4)
+
+    
+
+
+###############################################
+#                  SAVE DATA                  #
+###############################################
+data_dict = {
+    "time": t_eval,  # Time column
+    "r_LVLH_C_x": r_LVLH_C[0, :], "r_LVLH_C_y": r_LVLH_C[1, :], "r_LVLH_C_z": r_LVLH_C[2, :],  # Position in LVLH
+    "v_LVLH_C_x": v_LVLH_C[0, :], "v_LVLH_C_y": v_LVLH_C[1, :], "v_LVLH_C_z": v_LVLH_C[2, :],  # Velocity in LVLH
+    "roll": rollVec.flatten(), "pitch": pitchVec.flatten(), "yaw": yawVec.flatten(),  # Euler angles
+    "roll_rate": rollrateVec.flatten(), "pitch_rate": pitchrateVec.flatten(), "yaw_rate": yawrateVec.flatten()  # Euler rates
+}
+
+# Create Pandas DataFrame
+df = pd.DataFrame(data_dict)
+
+# Save to CSV
+df.to_csv("TestCase_1-3.csv", index=False)  # No index column in the CSV
+
+print("CSV file saved successfully!")
+
 plt.show()
-
-
-# #Plot trajectory in ECI:
-# ax2 = fig.add_subplot(1,2,2, projection='3d')
-# plotTraj(r_ECI_T[0], r_ECI_T[1], r_ECI_T[2], "Target", 'r', ax2, Marker=True)
-# plotTraj(r_ECI_C[0], r_ECI_C[1], r_ECI_C[2], "Chaser", 'g', ax2, Marker=True)
-# ax2.scatter(0, 0, 0, s=100, marker='.', c='k', label="Origin")
-
-# ax2.set_xlabel('X, km')
-# ax2.set_ylabel('Y, km')
-# ax2.set_zlabel('Z, km')
-# ax2.tick_params(axis='x', labelsize=10)
-# ax2.tick_params(axis='y', labelsize=10)
-# ax2.tick_params(axis='z', labelsize=10)
-
-# ax2.set_title("ECI, {} orbits".format(round(t/tau,2)))
-# ax2.legend()
-# plt.show()
-
-
-#DYNAMIC PLOTTING (MATPLOTLIB)
-if matplotlibPlt:
-    fig2 = plt.figure(figsize = (10, 10))
-    ax = plt.axes(projection = '3d')
-
-    #axLen = 20 #size of axis
-
-    length = 8 #side length of cube
-
-    for i in range(len(t_eval)):
-        ax.clear()
-        ax.set_xlim(-25, 0)
-        ax.set_ylim(-15, 5)
-        ax.set_zlim(-10, 10)
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        ax.set_zlabel('z')
-        ax.set_title('Cube Plot')
-        ax.set_aspect('equal')
-        
-        #plot the path up to point i
-        ax.plot3D(r_LVLH_C[0,0:i], r_LVLH_C[1,0:i], r_LVLH_C[2,0:i])
-
-        #plot the cube
-        centroid = np.array([r_LVLH_C[0,i], r_LVLH_C[1,i], r_LVLH_C[2,i]])
-        vert = getVertices(centroid, length, qs[:,i])
-        plotCube(vert)
-        ax.plot3D(centroid[0], centroid[1], centroid[2], marker=".", markersize=10, color="g")
-
-        plt.pause(dt/acc)
-
-    plt.show()
-
-#DYNAMIC PLOTTING (PYBULLET)
-if pybulletPlt:
-    p.connect(p.GUI)
-    p.setGravity(0,0,0)
-
-    chaser = p.loadURDF("Chaser.urdf", basePosition=np.array([0,0,0]))
-    target = p.loadURDF("Target.urdf", basePosition=np.array([1.75,0,0]))
-
-    #only if we want the guidance cone to be drawn
-    drawCone = True
-    coneScale = 10
-
-    if drawCone:
-        cone = p.loadURDF("Cone.urdf", basePosition=np.array([0.25,coneScale*-0.4,coneScale*-0.4]), baseOrientation=p.getQuaternionFromEuler([0,-np.pi/2,0]))
-
-
-    for i in range(len(t_eval)):
-        #get the centroid
-        centroid = np.array([r_LVLH_C[0,i], r_LVLH_C[1,i], r_LVLH_C[2,i]])
-
-        #plot the new chaser position
-        pybulletPlot(centroid, qs[:,i], dt, acc)
-
-        #follow the cube with the camera
-        tracking = True
-        if tracking:
-            p.resetDebugVisualizerCamera(cameraDistance = 10,
-                                         cameraYaw = i/3+180,
-                                         cameraPitch = -40,
-                                         cameraTargetPosition = centroid)
-
-    lastCamAngle = i/3
-
-    #just an arbitary extension of the simulation for visualisation purposes
-    if tracking:
-        for i in range(len(t_eval/2)):
-            time.sleep(dt/acc)
-            p.resetDebugVisualizerCamera(cameraDistance = 10,
-                                            cameraYaw = lastCamAngle+i/3+180,
-                                            cameraPitch = -40,
-                                            cameraTargetPosition = centroid)
