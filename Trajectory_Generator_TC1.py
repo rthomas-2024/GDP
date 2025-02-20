@@ -1148,10 +1148,6 @@ for i in range(len(qs[0,:])):
 #                  PLOTTING                   #
 ###############################################
 diagnosticsPlt = True
-matplotlibPlt = False
-pybulletPlt = True
-acc = 30 #accelerates the time for the dynamic plotting
-
 
 #centroid = np.array([1,0,0])
 print(fullSolution.message)
@@ -1164,9 +1160,9 @@ if diagnosticsPlt:
 
     # Plot angular velocities
     ax1.set_title('Angular Velocity Variation')
-    ax1.plot(t_eval, omegaVec[0], color='b', label='omega_x')
-    ax1.plot(t_eval, omegaVec[1], color='r', label='omega_y')
-    ax1.plot(t_eval, omegaVec[2], color='g', label='omega_z')
+    ax1.plot(t_eval, rollrateVec, color='b', label='omega_x')
+    ax1.plot(t_eval, pitchrateVec, color='r', label='omega_y')
+    ax1.plot(t_eval, yawrateVec, color='g', label='omega_z')
     ax1.grid()
     ax1.set_xlabel('Time (s)')
     ax1.set_ylabel('Angular Velocity (deg/s)')
