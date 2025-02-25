@@ -972,7 +972,7 @@ def TrajandAttREDUCED(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
 #                   INPUTS                    #
 ###############################################
 InertMat = np.array([[1,0,0], [0,1,0],[0,0,1]]) #inertial matrix
-w0 = np.array([np.deg2rad(0),np.deg2rad(0.1),np.deg2rad(0)]) #initial angular velocity
+w0 = np.array([np.deg2rad(0.1),np.deg2rad(0.2),np.deg2rad(0.3)]) #initial angular velocity
 theta0 = np.array([30,20,10]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in body frame
@@ -1129,14 +1129,11 @@ yawrateVec = np.zeros([len(qs[0,:]),1])
 
 # convert to degrees
 for ii in range(0,len(qs[0,:])):
-    C = quaternionToDCM(qs[:,ii])
-    r, p, y = DCMtoEuler(C)
-    rollVec[ii] = np.rad2deg(r)
-    pitchVec[ii] = np.rad2deg(p)
-    yawVec[ii] = np.rad2deg(y)
-    rollrateVec[ii] = np.rad2deg(omegaVec[0,ii])
-    pitchrateVec[ii] = np.rad2deg(omegaVec[1,ii])
-    yawrateVec[ii] = np.rad2deg(omegaVec[2,ii])
+    tii = ii*dt
+    rollVec[ii] = np.rad2deg(theta0[0]) + np.rad2deg(w0[0])*tii
+    pitchVec[ii] = np.rad2deg(theta0[1]) + np.rad2deg(w0[1])*tii
+    yawVec[ii] = np.rad2deg(theta0[2]) + np.rad2deg(w0[2])*tii
+    
 
 #find the error in the norm of the quaternions from 1
 qErr = np.zeros([len(qs[0,:])])
@@ -1164,9 +1161,9 @@ if diagnosticsPlt:
 
     # Plot angular velocities
     ax1.set_title('Angular Velocity Variation')
-    ax1.plot(t_eval, omegaVec[0], color='b', label='omega_x')
-    ax1.plot(t_eval, omegaVec[1], color='r', label='omega_y')
-    ax1.plot(t_eval, omegaVec[2], color='g', label='omega_z')
+    ax1.plot(t_eval, np.rad2deg(omegaVec[0]), color='b', label='Roll Rate')
+    ax1.plot(t_eval, np.rad2deg(omegaVec[1]), color='r', label='Pitch Rate')
+    ax1.plot(t_eval, np.rad2deg(omegaVec[2]), color='g', label='Yaw Rate')
     ax1.grid()
     ax1.set_xlabel('Time (s)')
     ax1.set_ylabel('Angular Velocity (deg/s)')
@@ -1268,16 +1265,16 @@ if diagnosticsPlt:
 data_dict = {
     "time": t_eval,  # Time column
     "r_LVLH_C_x": r_LVLH_C[0, :], "r_LVLH_C_y": r_LVLH_C[1, :], "r_LVLH_C_z": r_LVLH_C[2, :],  # Position in LVLH
-    "v_LVLH_C_x": v_LVLH_C[0, :], "v_LVLH_C_y": v_LVLH_C[1, :], "v_LVLH_C_z": v_LVLH_C[2, :],  # Velocity in LVLH
+    #"v_LVLH_C_x": v_LVLH_C[0, :], "v_LVLH_C_y": v_LVLH_C[1, :], "v_LVLH_C_z": v_LVLH_C[2, :],  # Velocity in LVLH
     "roll": rollVec.flatten(), "pitch": pitchVec.flatten(), "yaw": yawVec.flatten(),  # Euler angles
-    "roll_rate": rollrateVec.flatten(), "pitch_rate": pitchrateVec.flatten(), "yaw_rate": yawrateVec.flatten()  # Euler rates
+    #"roll_rate": rollrateVec.flatten(), "pitch_rate": pitchrateVec.flatten(), "yaw_rate": yawrateVec.flatten()  # Euler rates
 }
 
 # Create Pandas DataFrame
 df = pd.DataFrame(data_dict)
 
 # Save to CSV
-df.to_csv("TestCase_1-3.csv", index=False)  # No index column in the CSV
+df.to_csv("TestCase_1-4.csv", index=False)  # No index column in the CSV
 
 print("CSV file saved successfully!")
 

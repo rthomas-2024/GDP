@@ -1,6 +1,7 @@
 ###############################################
 #                  IMPORTS                    #
 ###############################################
+from ast import Num
 import numpy as np
 from numpy import sin as s
 from numpy import cos as c
@@ -18,8 +19,9 @@ from scipy.integrate import solve_ivp
 from matplotlib.animation import FuncAnimation
 from scipy.interpolate import interp1d
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-import time
+from scipy.integrate import ode
 
+import pandas as pd
 
 
 ###############################################
@@ -638,7 +640,6 @@ def PlanTrajectory(NumWPs, drvec, tvec, dr0, dv0, dt):
 
     return Traj, deltavs
 
-
 def is_inside_2d(edges, xp, yp):
     """Checks if a 2D point (xp, yp) is inside a polygon defined by edges using ray-casting."""
     cnt = 0
@@ -771,15 +772,10 @@ def pid_control(t, error, Kp, Ki, Kd, integral,previous_error, previous_time):
 # COMBINED DIFFERENTIAL EQUATION
 def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     #I is the full inertial matrix, and omega is an angular velocity vector
-    I11 = InertMat[0,0]
-    I22 = InertMat[1,1]
-    I33 = InertMat[2,2]
 
     omega = stateVec[0:3]
     q = stateVec[3:7]
 
-    #print("Time: {}".format(t))
-        
     # Attitude control
     global prev_time, integral_x,integral_y,integral_z,prev_error_x,prev_error_y,prev_error_z, integral_roll,integral_pitch,integral_yaw,prev_error_roll,prev_error_pitch,prev_error_yaw
     prev_time_iter = prev_time
@@ -788,7 +784,10 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     roll_err = roll_ref - roll
     pitch_err = pitch_ref - pitch
     yaw_err = yaw_ref - yaw
-
+    q_err = 1-norm(q)
+    # C_err = quaternionToDCM(q_err)
+    # roll_err, pitch_err, yaw_err = DCMtoEuler(C_err)
+    #print("Quaternion error: {}".format(q_err))
     #print("roll: {}".format(roll), "pitch: {}".format(pitch), "yaw: {}".format(yaw))
     u_roll, integral_roll, prev_error_roll, prev_time = pid_control(t, roll_err, kP_roll, kI_roll, kD_roll, integral_roll, prev_error_roll, prev_time_iter)
     u_pitch, integral_pitch, prev_error_pitch, prev_time = pid_control(t, pitch_err, kP_pitch, kI_pitch, kD_pitch, integral_pitch, prev_error_pitch, prev_time_iter)
@@ -808,12 +807,13 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
 
     omega1, omega2, omega3 = omega
     #T1, T2, T3 = T_ext_func(t)
-    T_control = np.dot(InertMat.T, np.array([u_roll,u_pitch,u_yaw]))
-    dw1dt = (T_control[0] - (I33-I22)*omega2*omega3) / I11
-    dw2dt = (T_control[1] - (I11-I33)*omega1*omega3) / I22
-    dw3dt = (T_control[2] - (I22-I11)*omega2*omega1) / I33
+    T_control = np.dot(I.T, np.array([u_roll,u_pitch,u_yaw]))
 
-    omegaDot = np.array([dw1dt, dw2dt, dw3dt]) #returns the dw/dt full vector
+    T_vec = np.array([T_control[0], T_control[1], T_control[2]])
+    omega_vec = np.array([omega1, omega2, omega3]).T
+    I_mult_omegaDot = T_vec-np.cross(omega_vec, I @ omega_vec)
+    omegaDot = np.linalg.inv(I) @ I_mult_omegaDot #returns the dw/dt full vector
+
     qDot = getAmat(omega) @ q
 
     stateVecDot = np.zeros([25])
@@ -833,7 +833,17 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     ddxT_ECI = (-mu/(np.linalg.norm(rT_ECI)**3)) * xT_ECI
     ddyT_ECI = (-mu/(np.linalg.norm(rT_ECI)**3)) * yT_ECI
     ddzT_ECI = (-mu/(np.linalg.norm(rT_ECI)**3)) * zT_ECI
-    aT_ECI = np.array([ddxT_ECI, ddyT_ECI, ddzT_ECI])    
+    aT_ECI = np.array([ddxT_ECI, ddyT_ECI, ddzT_ECI])
+
+    rT = rT_ECI
+    
+    if 1<t<50:
+        f = np.array([f_x, f_y, f_z]) # km/sec^2
+        f_ECI, IGNORE = LVLH2ECI(rT,np.array([ dxT_ECI, dyT_ECI, dzT_ECI]),f,f)
+        #print("FIRING, time =", t)
+    else:
+        f = np.array([0,0,0])
+        f_ECI = np.array([0,0,0])
         
     # Trajectory Control
     dr = np.array([x_LVLH, y_LVLH, z_LVLH])
@@ -844,22 +854,28 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     u_y, integral_y, prev_error_y, prev_time = pid_control(t, dr_error[1], kPy, kIy, kDy, integral_y, prev_error_y, prev_time_iter)
     u_z, integral_z, prev_error_z, prev_time = pid_control(t, dr_error[2], kPz, kIz, kDz, integral_z, prev_error_z, prev_time_iter)
         
-    if u_x > u_x_thresh: u_x = u_x_max
-    elif u_x < -u_x_thresh: u_x = -u_x_max
-    else: u_x = 0
-    if u_y > u_y_thresh: u_y = u_y_max
-    elif u_y < -u_y_thresh: u_y = -u_y_max
-    else: u_y = 0
-    if u_z > u_z_thresh: u_z = u_z_max
-    elif u_z < -u_z_thresh: u_z = -u_z_max
-    else: u_z = 0
 
+    if u_x > u_x_thresh: u_x = u_x_thresh
+    elif u_x < -u_x_thresh: u_x = -u_x_thresh
+    else: u_x = 0
+    if u_y > u_y_thresh: u_y = u_y_thresh
+    elif u_y < -u_y_thresh: u_y = -u_y_thresh
+    else: u_y = 0
+    if u_z > u_z_thresh: u_z = u_z_thresh
+    elif u_z < -u_z_thresh: u_z = -u_z_thresh
+    else: u_z = 0
+    
+    #print("u_x: {}".format(u_x),"u_y: {}".format(u_y),"u_z: {}".format(u_z))
+
+   # print("time: {}".format(t), "ref point: {}".format(dr_ref),"prev point: {}".format(dr) , "input_x: {}".format(u_x))
+    #print( "input_x: {}".format(u_x))
     #print(t)
     # Hill Eqns, Chaser
     ddx_LVLH = 2 * n * dy_LVLH + 3 * n**2 * x_LVLH  + u_x
     ddy_LVLH = -2 * n * dx_LVLH + u_y
     ddz_LVLH = -n**2 * z_LVLH + u_z
     a_LVLH = np.array([ddx_LVLH, ddy_LVLH, ddz_LVLH])
+    a_LVLH = a_LVLH + f # m/sec^2
 
     # 2 body acceleration, Chaser
     r_ECI = np.array([x_ECI, y_ECI, z_ECI])
@@ -867,17 +883,104 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     ddy_ECI = (-mu/(np.linalg.norm(r_ECI)**3)) * y_ECI
     ddz_ECI = (-mu/(np.linalg.norm(r_ECI)**3)) * z_ECI
     a_ECI = np.array([ddx_ECI, ddy_ECI, ddz_ECI])
+    a_ECI = a_ECI + f_ECI/1000 # km/sec^2
     
     stateVecDot[7:25] = dxT_ECI,dyT_ECI,dzT_ECI,aT_ECI[0],aT_ECI[1],aT_ECI[2], dx_ECI,dy_ECI,dz_ECI,a_ECI[0],a_ECI[1],a_ECI[2], dx_LVLH,dy_LVLH,dz_LVLH,a_LVLH[0],a_LVLH[1],a_LVLH[2]
+        
+    return stateVecDot
+def TrajandAttREDUCED(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
+    #I is the full inertial matrix, and omega is an angular velocity vector
+    omega = stateVec[0:3]
+    roll,pitch,yaw = stateVec[3:6]
+
+    # Attitude control
+    global prev_time, integral_x,integral_y,integral_z,prev_error_x,prev_error_y,prev_error_z, integral_roll,integral_pitch,integral_yaw,prev_error_roll,prev_error_pitch,prev_error_yaw
+    prev_time_iter = prev_time
+
+    roll_err = roll_ref - roll
+    pitch_err = pitch_ref - pitch
+    yaw_err = yaw_ref - yaw
+    
+    print("roll: {}".format(roll), "pitch: {}".format(pitch), "yaw: {}".format(yaw))
+    u_roll, integral_roll, prev_error_roll, prev_time = pid_control(t, roll_err, kP_roll, kI_roll, kD_roll, integral_roll, prev_error_roll, prev_time_iter)
+    u_pitch, integral_pitch, prev_error_pitch, prev_time = pid_control(t, pitch_err, kP_pitch, kI_pitch, kD_pitch, integral_pitch, prev_error_pitch, prev_time_iter)
+    u_yaw, integral_yaw, prev_error_yaw, prev_time = pid_control(t, yaw_err, kP_yaw, kI_yaw, kD_yaw, integral_yaw, prev_error_yaw, prev_time_iter)
+    #print("u_roll: {}".format(u_roll),"u_pitch: {}".format(u_pitch),"u_yaw: {}".format(u_yaw))
+    
+    if u_roll > u_roll_thresh: u_roll = u_roll_max
+    elif u_roll < -u_roll_thresh: u_roll = -u_roll_max
+    else: u_roll = 0
+    if u_pitch > u_pitch_thresh: u_pitch = u_pitch_max
+    elif u_pitch < -u_pitch_thresh: u_pitch = -u_pitch_max
+    else: u_pitch = 0
+    if u_yaw > u_yaw_thresh: u_yaw = u_yaw_max
+    elif u_yaw < -u_yaw_thresh: u_yaw = -u_yaw_max
+    else: u_yaw = 0
+
+    omega1, omega2, omega3 = omega
+    #T1, T2, T3 = T_ext_func(t)
+    T_control = np.dot(InertMat.T, np.array([u_roll,u_pitch,u_yaw]))
+    T_vec = np.array([T_control[0], T_control[1], T_control[2]])
+    omega_vec = np.array([omega1, omega2, omega3])
+
+    I_mult_omegaDot = T_vec-np.cross(omega_vec, I @ omega_vec)
+    omegaDot = np.linalg.inv(I) @ I_mult_omegaDot #returns the dw/dt full vector
+
+    #qDot = getAmat(omega) @ q
+
+    stateVecDot = np.zeros([12])
+    stateVecDot[0:3] = omegaDot
+    stateVecDot[3:6] = omega
+    #stateVecDot[3:6] = qDot
+    #note quaternions used because it creates smooth interpolation for animations. this is called slerp
+
+    ###########################
+    # TRAJECTORY
+    ###########################
+    # unpack variables
+    x_LVLH, y_LVLH, z_LVLH, dx_LVLH, dy_LVLH, dz_LVLH = stateVec[6:12]
+    
+    # Trajectory Control
+    dr = np.array([x_LVLH, y_LVLH, z_LVLH])
+    dr_ref = interpolate_3d(interp_dx,interp_dy,interp_dz, t)
+    dr_error = dr_ref - dr
+
+    u_x, integral_x, prev_error_x, prev_time = pid_control(t, dr_error[0], kPx, kIx, kDx, integral_x, prev_error_x, prev_time_iter)
+    u_y, integral_y, prev_error_y, prev_time = pid_control(t, dr_error[1], kPy, kIy, kDy, integral_y, prev_error_y, prev_time_iter)
+    u_z, integral_z, prev_error_z, prev_time = pid_control(t, dr_error[2], kPz, kIz, kDz, integral_z, prev_error_z, prev_time_iter)
+        
+    #print( "input_x: {}".format(u_x))
+
+    if u_x > u_x_thresh: u_x = u_x_thresh
+    elif u_x < -u_x_thresh: u_x = -u_x_thresh
+    else: u_x = 0
+    if u_y > u_y_thresh: u_y = u_y_thresh
+    elif u_y < -u_y_thresh: u_y = -u_y_thresh
+    else: u_y = 0
+    if u_z > u_z_thresh: u_z = u_z_thresh
+    elif u_z < -u_z_thresh: u_z = -u_z_thresh
+    else: u_z = 0
+
+   # print("time: {}".format(t), "ref point: {}".format(dr_ref),"prev point: {}".format(dr) , "input_x: {}".format(u_x))
+    #print( "input_x: {}".format(u_x))
+    print(t)
+    # Hill Eqns, Chaser
+    ddx_LVLH = 2 * n * dy_LVLH + 3 * n**2 * x_LVLH  + u_x
+    ddy_LVLH = -2 * n * dx_LVLH + u_y
+    ddz_LVLH = -n**2 * z_LVLH + u_z
+    a_LVLH = np.array([ddx_LVLH, ddy_LVLH, ddz_LVLH])
+    a_LVLH = a_LVLH + f # m/sec^2
+ 
+    stateVecDot[6:12] = dx_LVLH,dy_LVLH,dz_LVLH,a_LVLH[0],a_LVLH[1],a_LVLH[2]
         
     return stateVecDot
 
 ###############################################
 #                   INPUTS                    #
 ###############################################
-InertMat = np.array([[1,0,0], [0,1,0],[0,0,1]]) #inertial matrix
-w0 = np.array([0.00,0.00,0.00]) #initial angular velocity
-theta0 = np.array([10,10,10]) #initial attitude in degrees (roll, pitch, yaw)
+I = np.array([[1,0,0], [0,1,0],[0,0,1]]) #inertial matrix
+w0 = np.array([0.10,0.10,0.10]) #initial angular velocity
+theta0 = np.array([0,0,0]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in body frame
    T1 = 0
@@ -885,17 +988,17 @@ def T_ext_func(t): #define the thrust over time in body frame
    T3 = 0
    return np.array([T1, T2, T3])
 
-t = 50
+t = 200
 tspan = np.array([0, t]) #spans one minute (start and stop)
-dt = 0.2 #timestep in seconds
+dt = 0.1 # timestep in seconds
 
-triangleInequality(InertMat) #checks that the object exists
+triangleInequality(I) #checks that the object exists
 theta0 = theta0 * 2*np.pi/360 #convert attitude to radians
 
 #TRAJECTORY INPUTS
 R_Earth = 6378
 a = 400 + 6378 # semi major axis
-I = np.deg2rad(0)
+Inc = np.deg2rad(0)
 e = 0
 f = np.deg2rad(0)
 RAAN = np.deg2rad(0)
@@ -904,7 +1007,7 @@ mu = 398600 # Earth gravitational param
 tau = np.sqrt(a**3 * 4 * np.pi**2 / mu) # orbital period
 n = 2*np.pi / tau # mean motion
 
-rT_ECI0, vT_ECI0 = sv_from_coe([a, e, RAAN, I, AOP, f], mu) # state vector of target sc, initially
+rT_ECI0, vT_ECI0 = sv_from_coe([a, e, RAAN, Inc, AOP, f], mu) # state vector of target sc, initially
 
 f_x = 0  # forces/unit mass to be applied. km/sec^2
 f_y = 0  
@@ -928,10 +1031,10 @@ vC_ECI0 = vCrel_ECI0/1000 + vT_ECI0 # in km/sec
 #########################
 # Planning a trajectory #
 #########################
-
 # MORE COMPLEX TRAJECTORY
 dr0 = np.array([x0,y0,z0])
 dv0 = np.array([0,0,0])
+
 # NumWPs = 5
 # dr1 = np.array([1,0,0])
 # dr2 = np.array([0.8,-0.07,-0.06])
@@ -965,9 +1068,8 @@ tvec = np.array([t])
 # This is the planned trajectory
 Traj, deltavs = PlanTrajectory(NumWPs, drvec, tvec, dr0, dv0, dt) # Traj has ith row: drx,dry,drz,dvx,dvy,dvz,t
 
-
 # Define Pyramid geometry
-base = [(1.5, 0.2, 0.2), (1.5, -0.2, 0.2), (1.5, -0.2, -0.2), (1.5, 0.2, -0.2)]
+base = [(1.5, 0.4, 0.4), (1.5, -0.4, 0.4), (1.5, -0.4, -0.4), (1.5, 0.4, -0.4)]
 apex = (0,0,0)
 # Find points outside pyramid
 results = check_points_in_pyramid(Traj[:,0:3], base, apex)
@@ -986,6 +1088,16 @@ integral_z = 0
 prev_error_z = 0
 prev_time = 0
 
+# kPx = 4
+# kIx = 0
+# kDx = 1
+# kPy = 4
+# kIy = 0
+# kDy = 1
+# kPz = 4
+# kIz = 0
+# kDz = 1
+
 kPx = 0
 kIx = 0
 kDx = 0
@@ -996,13 +1108,9 @@ kPz = 0
 kIz = 0
 kDz = 0
 
-u_x_max = 10e-3 # m/sec^2
-u_y_max = 10e-3 # m/sec^2
-u_z_max = 10e-3 # m/sec^2
-
-u_x_thresh = 5e-4
-u_y_thresh = 5e-4
-u_z_thresh = 5e-4
+u_x_thresh = 5e-5 # m/s^2
+u_y_thresh = 5e-5
+u_z_thresh = 5e-5
 
 # Attitude PID Parameters [roll pitch yaw]
 integral_roll = 0
@@ -1012,15 +1120,15 @@ prev_error_pitch = 0
 integral_yaw = 0
 prev_error_yaw = 0
 
-kP_roll = 1*0.8#2*0.8
+kP_roll = 0#1*0.8#2*0.8
 kI_roll = 0
-kD_roll = 0.1*1*270#2*0.1*40
-kP_pitch = 1*0.8#2*0.8
+kD_roll = 0#0.1*1*270#2*0.1*40
+kP_pitch = 0#1*0.8#2*0.8
 kI_pitch = 0
-kD_pitch = 0.1*1*270#1*0.1*40
-kP_yaw = 1*0.8#2*0.8
+kD_pitch = 0#0.1*1*270#1*0.1*40
+kP_yaw = 0#1*0.8#2*0.8
 kI_yaw = 0
-kD_yaw = 0.1*1*270#1*0.1*40
+kD_yaw = 0#0.1*1*270#1*0.1*40
 
 u_roll_max = 10e-5 # m/sec^2
 u_pitch_max = 10e-5 # rad/sec^2
@@ -1048,15 +1156,10 @@ isv = np.zeros([25])
 #fill initial state vector
 isv[0:3] = w0
 isv[3:7] = q0
-isv[7:25] = rT_ECI0[0],rT_ECI0[1],rT_ECI0[2],vT_ECI0[0],vT_ECI0[1],vT_ECI0[2], rC_ECI0[0],rC_ECI0[1],rC_ECI0[2],vC_ECI0[0],vC_ECI0[1],vC_ECI0[2], rC_LVLH0[0],rC_LVLH0[1],rC_LVLH0[2],vC_LVLH0[0],vC_LVLH0[1],vC_LVLH0[2]
+isv[7:26] = rT_ECI0[0],rT_ECI0[1],rT_ECI0[2],vT_ECI0[0],vT_ECI0[1],vT_ECI0[2], rC_ECI0[0],rC_ECI0[1],rC_ECI0[2],vC_ECI0[0],vC_ECI0[1],vC_ECI0[2], rC_LVLH0[0],rC_LVLH0[1],rC_LVLH0[2],vC_LVLH0[0],vC_LVLH0[1],vC_LVLH0[2]
 
-###############################################
-#             INTEGRATION LOOP                #
-###############################################
 
-num_datapoints = int(t/dt + 2)
-
-# solution containers: 
+num_datapoints = int(t/dt + 1)
 omegaVec = np.zeros([3,num_datapoints])
 qs = np.zeros([4,num_datapoints])
 r_ECI_T = np.zeros([3,num_datapoints])
@@ -1065,62 +1168,265 @@ r_ECI_C = np.zeros([3,num_datapoints])
 v_ECI_C = np.zeros([3,num_datapoints])
 r_LVLH_C = np.zeros([3,num_datapoints])
 v_LVLH_C = np.zeros([3,num_datapoints])
+t_plot = np.zeros([1,num_datapoints])
+
+tspan = np.array([0, t])
+t_eval = np.arange(tspan[0], tspan[1]+dt, dt) #when to store state matrix
+count = 0
+
+omegaVec[:,count] = isv[0:3]
+qs[:,count] = isv[3:7]
+r_ECI_T[:,count] = isv[7:10]
+v_ECI_T[:,count] = isv[10:13]
+r_ECI_C[:,count] = isv[13:16]
+v_ECI_C[:,count] = isv[16:19]
+r_LVLH_C[:,count] = isv[19:22]
+v_LVLH_C[:,count] = isv[22:25]
+t_plot[count] = 0
 
 start_time = time.perf_counter()
-n = 0  # Step counter
-elapsed_time = time.perf_counter()
 
-omegaVec[:,n] = w0
-qs[:,n] = q0
-r_ECI_T[:,n] = rT_ECI0
-v_ECI_T[:,n] = vT_ECI0
-r_ECI_C[:,n] = rC_ECI0
-v_ECI_C[:,n] = vC_ECI0
-r_LVLH_C[:,n] = rC_LVLH0
-v_LVLH_C[:,n] = vC_LVLH0
 
-tspan = np.array([0, dt]) # spans one dt
-#t_eval = np.arange(tspan[0], tspan[1]+dt, dt) #when to store state matrix
-t_eval = np.linspace(0,dt,20)
-print("START OF LOOP")
-while elapsed_time < t:
-    n += 1
+##########################################
+# One big batch solver
+##########################################
+# fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, method='RK45', t_eval = t_eval, args=(T_ext_func,interp_dx,interp_dy,interp_dz), rtol=1e-10)
+# omegaVec = fullSolution.y[0:3, :] #the .y exctracts just the omegas over the tspan
+# qs = fullSolution.y[3:7, :]
+# r_ECI_T = np.array([fullSolution.y[7], fullSolution.y[8], fullSolution.y[9]])
+# v_ECI_T = np.array([fullSolution.y[10], fullSolution.y[11], fullSolution.y[12]])
+# r_ECI_C = np.array([fullSolution.y[13], fullSolution.y[14], fullSolution.y[15]])
+# v_ECI_C = np.array([fullSolution.y[16], fullSolution.y[17], fullSolution.y[18]])
+# r_LVLH_C = np.array([fullSolution.y[19], fullSolution.y[20], fullSolution.y[21]])
+# v_LVLH_C = np.array([fullSolution.y[22], fullSolution.y[23], fullSolution.y[24]])
+# t_plot[:,:] = fullSolution.t
+
+
+##########################################
+# THIS WORKS! (but is slow, no update to isv)
+##########################################
+
+# for ii in range(0,num_datapoints-1):
+    
+#     tii = dt*(1+ii) # first tii = dt
+#     tspan = np.array([0, tii])
+#     t_eval = np.array([tii]) # when to store state matrix
+#     count = count + 1
+#     elapsed_time = time.perf_counter() - start_time
+#     solver_start = time.perf_counter()
+#     fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, method='RK45', t_eval = t_eval, args=(T_ext_func,interp_dx,interp_dy,interp_dz), rtol=1e-6)    # print("tii = {} seconds".format(tii))
+#     print("Solver time duration: {} seconds".format(time.perf_counter() - solver_start))
+#     # Extract the new value
+#     print("Solution (in loop): ........")
+#     print(fullSolution.y[:,-1])
+#     # # print(sol.t)
+#     omegaVec[:,count] = fullSolution.y[0:3,-1]
+#     qs[:,count] = fullSolution.y[3:7,-1]
+#     r_ECI_T[:,count] = fullSolution.y[7:10,-1]
+#     v_ECI_T[:,count] = fullSolution.y[10:13,-1]
+#     r_ECI_C[:,count] = fullSolution.y[13:16,-1]
+#     v_ECI_C[:,count] = fullSolution.y[16:19,-1]
+#     r_LVLH_C[:,count] = fullSolution.y[19:22,-1]
+#     v_LVLH_C[:,count] = fullSolution.y[22:25,-1]
+#     t_plot[:,count] = tii
+    
+#     # # Print results
+#     print(f"Time: {tii:.2f}")
+#     print("Count = {}".format(count))
+
+
+####################################################
+# This works in fake time and is fast (updates isv)
+####################################################
+
+# solver_times_solveivp = []
+
+# for ii in range(0,num_datapoints-1):
+    
+#     tii = dt*(1+ii) # first tii = dt
+#     tspan = np.array([0, dt])
+#     t_eval = np.array([dt]) # when to store state matrix
+#     count = count + 1
+#     elapsed_time = time.perf_counter() - start_time
+#     solver_start = time.perf_counter()
+#     fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, method='RK45', t_eval = t_eval, args=(T_ext_func,interp_dx,interp_dy,interp_dz), rtol=1e-6, atol=1e-9)    # print("tii = {} seconds".format(tii))
+#     solver_times_solveivp.append(time.perf_counter() - solver_start)
+#     print("Solver time duration: {} seconds".format(time.perf_counter() - solver_start))
+#     # Extract the new value
+#     print("Solution (in loop): ........")
+#     print(fullSolution.y[:,-1])
+
+#     omegaVec[:,count] = fullSolution.y[0:3,-1]
+#     qs[:,count] = fullSolution.y[3:7,-1]
+#     r_ECI_T[:,count] = fullSolution.y[7:10,-1]
+#     v_ECI_T[:,count] = fullSolution.y[10:13,-1]
+#     r_ECI_C[:,count] = fullSolution.y[13:16,-1]
+#     v_ECI_C[:,count] = fullSolution.y[16:19,-1]
+#     r_LVLH_C[:,count] = fullSolution.y[19:22,-1]
+#     v_LVLH_C[:,count] = fullSolution.y[22:25,-1]
+#     t_plot[:,count] = tii
+    
+#     isv = fullSolution.y[:,-1] # reset isv
+    
+#     # # Print results
+#     print(f"Time: {tii:.2f}")
+#     print("Count = {}".format(count))
+
+
+####################################################
+# This works in fake time and is fast (updates isv) --> dopri5
+####################################################
+
+print("dopri5")
+solver = ode(TrajandAtt).set_integrator("dopri5",rtol=1e-6, atol=1e-9)
+solver.set_initial_value(isv, 0.0)  # y0 = 1, t0 = 0
+solver.set_f_params(T_ext_func,interp_dx,interp_dy,interp_dz)
+solver_times_dopri5 = []
+count = 0
+isv[0:3] = w0
+isv[3:7] = q0
+isv[7:26] = rT_ECI0[0],rT_ECI0[1],rT_ECI0[2],vT_ECI0[0],vT_ECI0[1],vT_ECI0[2], rC_ECI0[0],rC_ECI0[1],rC_ECI0[2],vC_ECI0[0],vC_ECI0[1],vC_ECI0[2], rC_LVLH0[0],rC_LVLH0[1],rC_LVLH0[2],vC_LVLH0[0],vC_LVLH0[1],vC_LVLH0[2]
+start_time = time.perf_counter()
+
+for ii in range(0,num_datapoints-1):
+    
+    tii = dt*(1+ii) # first tii = dt
+    tspan = np.array([0, dt])
+    t_eval = np.array([dt]) # when to store state matrix
+    count = count + 1
     elapsed_time = time.perf_counter() - start_time
-    print(f"Time: {elapsed_time:.6f}")
-    
     solver_start = time.perf_counter()
-    # solve trajectory with integrator
-    fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, method='RK45', t_eval = t_eval, args=(T_ext_func,interp_dx,interp_dy,interp_dz), rtol=1e-7)
-    print("Solver time: {} seconds".format(time.perf_counter() - solver_start))
+    solver.integrate(solver.t + dt)
+    solver_times_dopri5.append(time.perf_counter() - solver_start)
+    print("Solver time duration: {} seconds".format(time.perf_counter() - solver_start))
+    # Extract the new value
+    print("Solution (in loop): ........")
+    print(solver.y[:])
 
-    # save data
-    omegaVec[:,n] = fullSolution.y[0:3,-1]
-    qs[:,n] = fullSolution.y[3:7,-1]
-    r_ECI_T[:,n] = fullSolution.y[7:10,-1]
-    v_ECI_T[:,n] = fullSolution.y[10:13,-1]
-    r_ECI_C[:,n] = fullSolution.y[13:16,-1]
-    v_ECI_C[:,n] = fullSolution.y[16:19,-1]
-    r_LVLH_C[:,n] = fullSolution.y[19:22,-1]
-    v_LVLH_C[:,n] = fullSolution.y[22:25,-1]
-
-    # new initial conditions
-    isv[0:25] = np.array([fullSolution.y[0:25,-1]])
+    omegaVec[:,count] = solver.y[0:3]
+    qs[:,count] = solver.y[3:7]
+    r_ECI_T[:,count] = solver.y[7:10]
+    v_ECI_T[:,count] = solver.y[10:13]
+    r_ECI_C[:,count] = solver.y[13:16]
+    v_ECI_C[:,count] = solver.y[16:19]
+    r_LVLH_C[:,count] = solver.y[19:22]
+    v_LVLH_C[:,count] = solver.y[22:25]
+    t_plot[:,count] = tii
     
-    # Compute the exact next scheduled time
-    next_time = start_time + n * dt
+    #isv = fullSolution.y[:,-1] # reset isv
+    
+    # # Print results
+    print(f"Time: {tii:.2f}")
+    print("Count = {}".format(count))
+    
 
-    # Busy-wait until the next precise moment
-    while time.perf_counter() < next_time: # note this code is high CPU usage. the "pass" argument keeps the loop running until the the current time is exceeds next_time
-        pass  # Active waiting for precision
-t_eval = np.linspace(0, t, num=num_datapoints) #when to store state matrix
+####################################################
+# This works in fake time and is fast (updates isv) --> dop853
+####################################################
 
-print("END OF LOOP")
+# print("dop853")
+# solver = ode(TrajandAtt).set_integrator("dop853",rtol=1e-6, atol=1e-9)
+# solver.set_initial_value(isv, 0.0)  # y0 = 1, t0 = 0
+# solver.set_f_params(T_ext_func,interp_dx,interp_dy,interp_dz)
+# solver_times_dop853 = []
+# count = 0
+# isv[0:3] = w0
+# isv[3:7] = q0
+# isv[7:26] = rT_ECI0[0],rT_ECI0[1],rT_ECI0[2],vT_ECI0[0],vT_ECI0[1],vT_ECI0[2], rC_ECI0[0],rC_ECI0[1],rC_ECI0[2],vC_ECI0[0],vC_ECI0[1],vC_ECI0[2], rC_LVLH0[0],rC_LVLH0[1],rC_LVLH0[2],vC_LVLH0[0],vC_LVLH0[1],vC_LVLH0[2]
+# start_time = time.perf_counter()
 
-print(r_LVLH_C)
+# for ii in range(0,num_datapoints-1):
+    
+#     tii = dt*(1+ii) # first tii = dt
+#     tspan = np.array([0, dt])
+#     t_eval = np.array([dt]) # when to store state matrix
+#     count = count + 1
+#     elapsed_time = time.perf_counter() - start_time
+#     solver_start = time.perf_counter()
+#     solver.integrate(solver.t + dt)
+#     solver_times_dop853.append(time.perf_counter() - solver_start)
+#     print("Solver time duration: {} seconds".format(time.perf_counter() - solver_start))
+#     # Extract the new value
+#     print("Solution (in loop): ........")
+#     print(solver.y[:])
+
+#     omegaVec[:,count] = solver.y[0:3]
+#     qs[:,count] = solver.y[3:7]
+#     r_ECI_T[:,count] = solver.y[7:10]
+#     v_ECI_T[:,count] = solver.y[10:13]
+#     r_ECI_C[:,count] = solver.y[13:16]
+#     v_ECI_C[:,count] = solver.y[16:19]
+#     r_LVLH_C[:,count] = solver.y[19:22]
+#     v_LVLH_C[:,count] = solver.y[22:25]
+#     t_plot[:,count] = tii
+    
+#     #isv = fullSolution.y[:,-1] # reset isv
+    
+#     # # Print results
+#     print(f"Time: {tii:.2f}")
+#     print("Count = {}".format(count))
+
+####################################################
+# Real time (no acceleration)
+####################################################
+
+# start_time = time.perf_counter()
+# elapsed_time = time.perf_counter()
+# ii = 0
+# while elapsed_time < t-dt:    
+    
+#     tii = dt*(1+ii) # first tii = dt
+#     tspan = np.array([0, dt])
+#     t_eval = np.array([dt]) # when to store state matrix
+#     count = count + 1
+    
+#     elapsed_time = time.perf_counter() - start_time
+#     solver_start = time.perf_counter()
+#     fullSolution = sc.integrate.solve_ivp(TrajandAtt, tspan, isv, method='RK45', t_eval = t_eval, args=(T_ext_func,interp_dx,interp_dy,interp_dz), rtol=1e-6)    # print("tii = {} seconds".format(tii))
+#     print("Solver time duration: {} seconds".format(time.perf_counter() - solver_start))
+    
+#     # Extract the new value
+#     print("Solution (in loop): ........")
+#     print(fullSolution.y[:,-1])
+#     omegaVec[:,count] = fullSolution.y[0:3,-1]
+#     qs[:,count] = fullSolution.y[3:7,-1]
+#     r_ECI_T[:,count] = fullSolution.y[7:10,-1]
+#     v_ECI_T[:,count] = fullSolution.y[10:13,-1]
+#     r_ECI_C[:,count] = fullSolution.y[13:16,-1]
+#     v_ECI_C[:,count] = fullSolution.y[16:19,-1]
+#     r_LVLH_C[:,count] = fullSolution.y[19:22,-1]
+#     v_LVLH_C[:,count] = fullSolution.y[22:25,-1]
+#     t_plot[:,count] = tii
+    
+#     isv = fullSolution.y[:,-1] # reset isv
+#     ii = ii + 1
+    
+#     # Print results
+#     print(f"Time: {tii:.2f}")
+#     print("Count = {}".format(count))
+    
+#     # Compute the exact next scheduled time
+#     next_time = start_time + ii * dt
+
+#     # Busy-wait until the next precise moment
+#     while time.perf_counter() < next_time: # note this code is high CPU usage. the "pass" argument keeps the loop running until the the current time is exceeds next_time
+#         pass  # Active waiting for precision
+
+
+
+
+
+#called it full solution because it contains lots of useless information
+#we just want how state vector changes over time
 
 # omegaVec = fullSolution.y[0:3, :] #the .y exctracts just the omegas over the tspan
 # qs = fullSolution.y[3:7, :]
+# # eulers = fullSolution.y[3:6]
+# # r_LVLH_C = np.array([fullSolution.y[6], fullSolution.y[7], fullSolution.y[8]])
+# # v_LVLH_C = np.array([fullSolution.y[9], fullSolution.y[10], fullSolution.y[11]])
 
+# # r_LVLH_C = np.array([fullSolution.y[7], fullSolution.y[8], fullSolution.y[9]])
+# # v_LVLH_C = np.array([fullSolution.y[10], fullSolution.y[11], fullSolution.y[12]])
 
 # r_ECI_T = np.array([fullSolution.y[7], fullSolution.y[8], fullSolution.y[9]])
 # v_ECI_T = np.array([fullSolution.y[10], fullSolution.y[11], fullSolution.y[12]])
@@ -1128,6 +1434,9 @@ print(r_LVLH_C)
 # v_ECI_C = np.array([fullSolution.y[16], fullSolution.y[17], fullSolution.y[18]])
 # r_LVLH_C = np.array([fullSolution.y[19], fullSolution.y[20], fullSolution.y[21]])
 # v_LVLH_C = np.array([fullSolution.y[22], fullSolution.y[23], fullSolution.y[24]])
+
+print(r_LVLH_C)
+
 
 #find the error in the norm of the quaternions from 1
 qErr = np.zeros([len(qs[0,:])])
@@ -1278,6 +1587,78 @@ ax1.set_title("lvlh frame, {} orbits".format(round(t/tau,2)))
 plt.grid(True)
 ax1.legend()
 plot_pyramid_with_points(base, apex, results,ax1)
+
+
+
+
+
+
+
+# Create a figure with 6 axes (2 rows, 3 columns)
+fig2, axs = plt.subplots(2, 3, figsize=(15, 10))  
+
+ax1 = axs[0, 0]  # Angular Velocity
+ax2 = axs[0, 1]  # Euler Angles
+ax3 = axs[0, 2]  # Quaternion Norm Error
+ax4 = axs[1, 0]  # Control Torques
+ax5 = axs[1, 1]  # Angular Momentum
+ax6 = axs[1, 2]  # Energy Variation
+
+ax1.set_title('Chaser Position, x')
+ax1.plot(t_plot[0,:], r_LVLH_C[0], color='b')
+ax1.grid()
+ax1.set_xlabel('Time (s)')
+ax1.set_ylabel('Chaser Position, x (m)')
+
+ax2.set_title('Chaser Position, y')
+ax2.plot(t_plot[0,:], r_LVLH_C[1], color='r')
+ax2.grid()
+ax2.set_xlabel('Time (s)')
+ax2.set_ylabel('Chaser Position, y (m)')
+
+ax3.set_title('Chaser Position, z')
+ax3.plot(t_plot[0,:], r_LVLH_C[2], color='k')
+ax3.grid()
+ax3.set_xlabel('Time (s)')
+ax3.set_ylabel('Chaser Position, z (m)')
+
+ax4.set_title('Chaser Velocity, x')
+ax4.plot(t_plot[0,:], v_LVLH_C[0], color='b')
+ax4.grid()
+ax4.set_xlabel('Time (s)')
+ax4.set_ylabel('Chaser Position, x (m/s)')
+
+ax5.set_title('Chaser Velocity, y')
+ax5.plot(t_plot[0,:], v_LVLH_C[1], color='r')
+ax5.grid()
+ax5.set_xlabel('Time (s)')
+ax5.set_ylabel('Chaser Position, y (m/s)')
+
+ax6.set_title('Chaser Velocity, z')
+ax6.plot(t_plot[0,:], v_LVLH_C[2], color='k')
+ax6.grid()
+ax6.set_xlabel('Time (s)')
+ax6.set_ylabel('Chaser Position, z(m/s)')
+
+# Adjust spacing between plots
+plt.subplots_adjust(wspace=0.4, hspace=0.4)
+
+
+
+plt.figure()
+plt.plot(t_plot[0,1:], solver_times_dopri5,'g.', markersize=4, label="Ode (dopri5)")
+plt.axhline(y=np.mean(solver_times_dopri5),color='g',label="Ode (dopri5) mean")
+plt.plot(t_plot[0,1:], solver_times_dop853,'b.', markersize=4, label="Ode (dop853)")
+plt.axhline(y=np.mean(solver_times_dop853),color='b',label="Ode (dop853) mean")
+plt.plot(t_plot[0,1:], solver_times_solveivp, 'r.', markersize=4, label="Solve Ivp")
+plt.axhline(y=np.mean(solver_times_solveivp),color='r',label="Solve Ivp Mean")
+plt.xlabel("Time, sec")
+plt.ylabel("Solver time, sec")
+plt.grid()
+plt.legend()
+plt.title("Scipy Integrator Comparison, atol = 1e-9, rtol = 1e-6")
+
+
 plt.show()
 
 
