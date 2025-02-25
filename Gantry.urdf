@@ -16,7 +16,7 @@
 		
 	<!-- now make the second link, the one that the joint above attaches to-->
 	<!-- this is good practice, make the joint IN BETWEEN the two links that it joins together-->
-	<!-- the first 'proper' link is the base (what the whole gantry will 'rest' on-->
+	<!-- the first 'proper' link is the base (what the whole gantry will 'rest' on)-->
 	<link name="base_link">
 		<!-- each link should have 3 attributes: visual, collision and inertial-->
 		<visual>

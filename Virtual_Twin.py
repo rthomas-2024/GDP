@@ -20,10 +20,10 @@ def findJointsToAnimate():
         print("Joint index:", jointInfo[0], "Joint name:", jointInfo[1].decode("utf-8"), "Joint type:", jointInfo[2])
 def definePosition(t):
     yaxisPos = 1.2*np.sin(t)
-    zaxisPos = 0.5*np.sin(t)
-    gimbalFramePos = 0.2*np.sin(t)
+    zaxisPos = 0.3*np.sin(t)
+    gimbalHolderPos = 0.4*np.sin(t)
 
-    return yaxisPos, zaxisPos, gimbalFramePos
+    return yaxisPos, zaxisPos, gimbalHolderPos
 def animateSystem(tmax):
     #get the simulation start time to ensure the simulation only runs for tmax amount of time
     simulationStart = time.time()
@@ -35,7 +35,7 @@ def animateSystem(tmax):
         if simTime >= tmax:
             break
 
-        yaxisPos, zaxisPos, gimbalFramePos = definePosition(simTime)
+        yaxisPos, zaxisPos, gimbalHolderPos = definePosition(simTime)
 
         #move y-axis in x direction
         p.setJointMotorControl2(bodyUniqueId=gantry,
@@ -51,28 +51,28 @@ def animateSystem(tmax):
 
         #move gimbal frame in z direction
         p.setJointMotorControl2(bodyUniqueId=gantry,
-                                jointIndex=gimbalFramePrismaticJointIndex,
+                                jointIndex=gimbalHolderPrismaticJointIndex,
                                 controlMode=p.POSITION_CONTROL,
-                                targetPosition=gimbalFramePos)
+                                targetPosition=gimbalHolderPos)
 
         p.stepSimulation()
         time.sleep(1/240) #max refresh rate of pybullet, not necessarily same timestep as is used for plotting but of course same function
-def getConstrainedPos(yaxisPosFull, zaxisPosFull, gimbalFramePosFull, numSteps):
-    yaxisJointInfo = p.getJointInfo(gantry,6)
+def getConstrainedPos(yaxisPosFull, zaxisPosFull, gimbalHolderPosFull, numSteps):
+    yaxisJointInfo = p.getJointInfo(gantry,yaxisPrismaticJointIndex)
     yaxisJointLowerLimit = yaxisJointInfo[8]
     yaxisJointUpperLimit = yaxisJointInfo[9]
 
-    zaxisJointInfo = p.getJointInfo(gantry,7)
+    zaxisJointInfo = p.getJointInfo(gantry,zaxisPrismaticJointIndex)
     zaxisJointLowerLimit = zaxisJointInfo[8]
     zaxisJointUpperLimit = zaxisJointInfo[9]
 
-    gimbalFrameJointInfo = p.getJointInfo(gantry,8)
-    gimbalFrameJointLowerLimit = gimbalFrameJointInfo[8]
-    gimbalFrameJointUpperLimit = gimbalFrameJointInfo[9]
+    gimbalHolderJointInfo = p.getJointInfo(gantry,gimbalHolderPrismaticJointIndex)
+    gimbalHolderJointLowerLimit = gimbalHolderJointInfo[8]
+    gimbalHolderJointUpperLimit = gimbalHolderJointInfo[9]
 
     yaxisPosConstrained = np.zeros([numSteps])
     zaxisPosConstrained = np.zeros([numSteps])
-    gimbalFramePosConstrained = np.zeros([numSteps])
+    gimbalHolderPosConstrained = np.zeros([numSteps])
 
     for i in range(numSteps):
         if yaxisPosFull[i] >= yaxisJointUpperLimit:
@@ -89,22 +89,32 @@ def getConstrainedPos(yaxisPosFull, zaxisPosFull, gimbalFramePosFull, numSteps):
         else:
             zaxisPosConstrained[i] = zaxisPosFull[i]
 
-        if gimbalFramePosFull[i] >= gimbalFrameJointUpperLimit:
-            gimbalFramePosConstrained[i] = gimbalFrameJointUpperLimit
-        elif gimbalFramePosFull[i] <= gimbalFrameJointLowerLimit:
-            gimbalFramePosConstrained[i] = gimbalFrameJointLowerLimit
+        if gimbalHolderPosFull[i] >= gimbalHolderJointUpperLimit:
+            gimbalHolderPosConstrained[i] = gimbalHolderJointUpperLimit
+        elif gimbalHolderPosFull[i] <= gimbalHolderJointLowerLimit:
+            gimbalHolderPosConstrained[i] = gimbalHolderJointLowerLimit
         else:
-            gimbalFramePosConstrained[i] = gimbalFramePosFull[i]
+            gimbalHolderPosConstrained[i] = gimbalHolderPosFull[i]
 
-    return yaxisPosConstrained, zaxisPosConstrained, gimbalFramePosConstrained
-
-
+    return yaxisPosConstrained, zaxisPosConstrained, gimbalHolderPosConstrained
+def getVelos(yaxisPos, zaxisPos, gimbalHolderPos, dt):
+    yaxisVelos = np.gradient(yaxisPos, dt)
+    zaxisVelos = np.gradient(zaxisPos, dt)
+    gimbalHolderVelos = np.gradient(gimbalHolderPos, dt)
+    
+    return yaxisVelos, zaxisVelos, gimbalHolderVelos
+def getAccns(yaxisVelos, zaxisVelos, gimbalHolderVelos, dt):
+    yaxisAccns = np.gradient(yaxisVelos, dt)
+    zaxisAccns = np.gradient(zaxisVelos, dt)
+    gimbalHolderAccns = np.gradient(gimbalHolderVelos, dt)
+    
+    return yaxisAccns, zaxisAccns, gimbalHolderAccns
 
 ###############################################
 #             VARIABLE DEFINITIONS            #
 ###############################################
 #define time the same way it was done in the dynamic model to make future integration easier
-tmax = 10 #seconds
+tmax = 30 #seconds
 dt = 1/240 #to get 240 hz
 numSteps = int(tmax/dt) + 1
 t_eval = np.linspace(0, tmax, numSteps)
@@ -118,9 +128,13 @@ p.connect(p.GUI)
 p.setGravity(0,0,-9.81)
 p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0) #not showing GUI to make animations look nicer
 
-gantry = p.loadURDF("Gantry.urdf", basePosition=np.array([0,0,0]))
+gantry = p.loadURDF("Gantry_CAD.urdf", basePosition=np.array([0,0,0]))
 
-
+#assign the correct joint number to each joint MAY NEED UPDATING IF MORE JOINTS ADDED
+findJointsToAnimate()
+yaxisPrismaticJointIndex = 1
+zaxisPrismaticJointIndex = 2
+gimbalHolderPrismaticJointIndex = 3
 
 ###############################################
 #                 PROCESSING                  #
@@ -128,55 +142,63 @@ gantry = p.loadURDF("Gantry.urdf", basePosition=np.array([0,0,0]))
 #initialise plotting position arrays
 yaxisPosFull = np.zeros([numSteps])
 zaxisPosFull = np.zeros([numSteps])
-gimbalFramePosFull = np.zeros([numSteps])
+gimbalHolderPosFull = np.zeros([numSteps])
 
 #fill position plotting arrays
 for i in range(numSteps):
-    yaxisPosFull[i], zaxisPosFull[i], gimbalFramePosFull[i] = definePosition(t_eval[i])
+    yaxisPosFull[i], zaxisPosFull[i], gimbalHolderPosFull[i] = definePosition(t_eval[i])
 
 #the previous loop uses the full movement function, bit of course the movement is constrained by the joint limits
-yaxisPosConstrained, zaxisPosConstrained, gimbalFramePosConstrained = getConstrainedPos(yaxisPosFull, zaxisPosFull, gimbalFramePosFull, numSteps)
+yaxisPosConstrained, zaxisPosConstrained, gimbalHolderPosConstrained = getConstrainedPos(yaxisPosFull, zaxisPosFull, gimbalHolderPosFull, numSteps)
 
+yaxisVelos, zaxisVelos, gimbalHolderVelos = getVelos(yaxisPosConstrained, zaxisPosConstrained, gimbalHolderPosConstrained, dt)
 
+yaxisAccns, zaxisAccns, gimbalHolderAccns = getAccns(yaxisVelos, zaxisVelos, gimbalHolderVelos, dt)
 
 ###############################################
 #                  PLOTTING                   #
 ###############################################
 fig1, axs = plt.subplots(2, 2, figsize=(15,10))
-ax1 = axs[0,0] #yaxis position
-ax2 = axs[0,1] #zaxis position
-ax3 = axs[1,0] #gimbal frame position
+ax1 = axs[0,0] #position
+ax2 = axs[0,1] #velocity
+ax3 = axs[1,0] #acceleration
 ax4 = axs[1,1] #spare for now
 
-ax1.set_title("y-axis Position")
-ax1.plot(t_eval, yaxisPosFull, "r--", label="Unconstrained")
-ax1.plot(t_eval, yaxisPosConstrained, "r-", label="Constrained")
+ax1.set_title("Position")
+ax1.plot(t_eval, yaxisPosFull, "r--", label="y-axis (Unconstrained)")
+ax1.plot(t_eval, yaxisPosConstrained, "r-", label="y-axis (Constrained)")
+ax1.plot(t_eval, zaxisPosFull, "g--")
+ax1.plot(t_eval, zaxisPosConstrained, "g-", label="z-axis")
+ax1.plot(t_eval, gimbalHolderPosFull, "b--")
+ax1.plot(t_eval, gimbalHolderPosConstrained, "b-", label="Gimbal Bracket")
 ax1.grid()
 ax1.legend()
 ax1.set_xlabel("Time (s)")
 ax1.set_ylabel("Displacement from origin (m)")
-ax1.set_xlim(0,10)
+ax1.set_xlim(0,tmax)
 ax1.set_ylim(-1.5, 1.5)
 
-ax2.set_title("z-axis Position")
-ax2.plot(t_eval, zaxisPosFull, "g--", label="Unconstrained")
-ax2.plot(t_eval, zaxisPosConstrained, "g-", label="Constrained")
+ax2.set_title("Velocity")
+ax2.plot(t_eval, yaxisVelos, "r-", label="y-axis (x direction)")
+ax2.plot(t_eval, zaxisVelos, "g-", label="z-axis (y direction)")
+ax2.plot(t_eval, gimbalHolderVelos, "b-", label="Gimbal Bracket (z direction)")
 ax2.grid()
 ax2.legend()
 ax2.set_xlabel("Time (s)")
-ax2.set_ylabel("Displacement from origin (m)")
-ax2.set_xlim(0,10)
-ax2.set_ylim(-1.5, 1.5)
+ax2.set_ylabel("Velocity (m/s)")
+ax2.set_xlim(0,tmax)
+#ax2.set_ylim(-1.5, 1.5)
 
-ax3.set_title("Gimbal Frame Position")
-ax3.plot(t_eval, gimbalFramePosFull, "b--", label="Unconstrained")
-ax3.plot(t_eval, gimbalFramePosConstrained, "b-", label="Constrained")
+ax3.set_title("Acceleration")
+ax3.plot(t_eval, yaxisAccns, "r-", label="y-axis (x direction)")
+ax3.plot(t_eval, zaxisAccns, "g-", label="z-axis (y direction)")
+ax3.plot(t_eval, gimbalHolderAccns, "b-", label="Gimbal Bracket (z direction)")
 ax3.grid()
 ax3.legend()
 ax3.set_xlabel("Time (s)")
-ax3.set_ylabel("Displacement from origin (m)")
-ax3.set_xlim(0,10)
-ax3.set_ylim(-1.5, 1.5)
+ax3.set_ylabel("Acceleration (m/s)")
+ax3.set_xlim(0,tmax)
+#ax3.set_ylim(-1.5, 1.5)
 
 plt.subplots_adjust(wspace=0.25, hspace=0.3)
 plt.show()
@@ -186,11 +208,6 @@ plt.show()
 ###############################################
 #                  ANIMATION                  #
 ###############################################
-#assign the correct joint number to each joint MAY NEED UPDATING IF MORE JOINTS ADDED
-findJointsToAnimate()
-yaxisPrismaticJointIndex = 6
-zaxisPrismaticJointIndex = 7
-gimbalFramePrismaticJointIndex = 8
 
 animate = True #do we want to animate (control), or move with mouse
 
