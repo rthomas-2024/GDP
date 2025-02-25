@@ -1,0 +1,131 @@
+<robot name="Gantry_CAD">
+
+	<link name="world">
+	</link>
+
+	<joint name="base_joint" type="fixed">
+		<!-- because of how the STL has been loaded in, have to rotate by 90 deg and translate slightly-->
+		<origin xyz="-0.00316703 -0.01282036 -0.00465" rpy="1.570796327 0 1.570796327"/>
+		<parent link="world"/>
+		<child link="base_link"/>
+	</joint>
+
+	<!-- links the world to the corner (origin) of the gantry frame-->
+    <link name="base_link">
+        <visual>
+	        <origin xyz="0 0 0" rpy="0 0 0"/>
+            <geometry>
+		        <mesh filename="FULL_GANTRY_FRAME.STL" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="grey">
+                <color rgba="0.5 0.5 0.5 1"/> 
+            </material>
+        </visual>
+        <collision>
+            <geometry>
+                <box size="1 1 1"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <mass value="1.0"/> <!-- Mass in kilograms -->
+            <inertia ixx="0.1" ixy="0.0" ixz="0.0" iyy="0.1" iyz="0.0" izz="0.1"/>
+        </inertial>
+    </link>
+
+	<joint name="yaxis_joint" type="prismatic">
+		
+		<origin xyz="0.3 0.47 -0.4" rpy="0 0 0"/>
+		<parent link="base_link"/>
+		<child link="yaxis_link"/>
+
+		<axis xyz="0 0 1"/>
+		<limit lower="0" upper="1.35" velocity="100" effort="100"/>		
+	</joint>
+
+	<link name="yaxis_link">
+		<visual>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<mesh filename="YAXIS.STL" scale="0.001 0.001 0.001"/>
+			</geometry>
+			<material name="red">
+				<color rgba="1 0 0 1"/>
+			</material>
+		</visual>
+		<collision>
+			<geometry>
+				<box size="1 1 1"/>
+			</geometry>
+		</collision>
+		<inertial>
+			<mass value="1.0"/>
+			<!-- Mass in kilograms -->
+			<inertia ixx="0.1" ixy="0.0" ixz="0.0" iyy="0.1" iyz="0.0" izz="0.1"/>
+		</inertial>
+	</link>
+
+	<joint name="zaxis_joint" type="prismatic">
+
+		<origin xyz="0.45 -0.4 0" rpy="0 0 0"/>
+		<parent link="yaxis_link"/>
+		<child link="zaxis_link"/>
+
+		<axis xyz="1 0 0"/>
+		<limit lower="-0.35" upper="0.35" velocity="100" effort="100"/>
+	</joint>
+
+	<link name="zaxis_link">
+		<visual>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<mesh filename="ZAXIS.STL" scale="0.001 0.001 0.001"/>
+			</geometry>
+			<material name="green">
+				<color rgba="0 1 0 1"/>
+			</material>
+		</visual>
+		<collision>
+			<geometry>
+				<box size="1 1 1"/>
+			</geometry>
+		</collision>
+		<inertial>
+			<mass value="1.0"/>
+			<!-- Mass in kilograms -->
+			<inertia ixx="0.1" ixy="0.0" ixz="0.0" iyy="0.1" iyz="0.0" izz="0.1"/>
+		</inertial>
+	</link>
+
+	<joint name="gimbal_holder_joint" type="prismatic">
+
+		<origin xyz="0.011 0.48 0" rpy="0 0 0"/>
+		<parent link="zaxis_link"/>
+		<child link="gimbal_holder_link"/>
+
+		<axis xyz="0 1 0"/>
+		<limit lower="-0.45" upper="0.47" velocity="100" effort="100"/>
+	</joint>
+
+	<link name="gimbal_holder_link">
+		<visual>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<mesh filename="GIMBAL_HOLDER.STL" scale="0.001 0.001 0.001"/>
+			</geometry>
+			<material name="blue">
+				<color rgba="0 0 1 1"/>
+			</material>
+		</visual>
+		<collision>
+			<geometry>
+				<box size="1 1 1"/>
+			</geometry>
+		</collision>
+		<inertial>
+			<mass value="1.0"/>
+			<!-- Mass in kilograms -->
+			<inertia ixx="0.1" ixy="0.0" ixz="0.0" iyy="0.1" iyz="0.0" izz="0.1"/>
+		</inertial>
+	</link>
+
+</robot>

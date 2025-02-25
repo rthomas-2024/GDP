@@ -1,0 +1,407 @@
+<robot name="gantry">
+
+	<!-- first create a world link that doesnt contain anything-->
+	<!-- it is good practice to do this-->
+	<link name="world">
+	</link>
+
+	<!-- then make the first join attaching the world to the base link-->
+	<!-- again, this is good practice to do-->
+	<joint name="base_joint" type="fixed">
+		<!-- the / at the end of the origin, parent, child etc closes the statement automatically-->
+		<origin xyz="0 0 0.05" rpy="0 0 0"/>
+		<parent link="world"/>
+		<child link="base_link"/>
+	</joint>
+		
+	<!-- now make the second link, the one that the joint above attaches to-->
+	<!-- this is good practice, make the joint IN BETWEEN the two links that it joins together-->
+	<!-- the first 'proper' link is the base (what the whole gantry will 'rest' on)-->
+	<link name="base_link">
+		<!-- each link should have 3 attributes: visual, collision and inertial-->
+		<visual>
+			<!-- this is the origin FROM the joint origin (in this case raised by 0.05 because the box created is 0.1 height, so it will rest on the 'world floor'-->
+			<origin xyz="0 0 -0.025" rpy="0 0 0"/>
+			<geometry>
+				<box size="2.5 1.5 0.05"/>
+			</geometry>
+			<material name="green">
+				<color rgba="0.2 1 0.2 1"/>
+			</material>
+		</visual>
+		
+		<collision>
+			<!-- in this case (and most cases) the collision should have the same origin and geometry as the visual-->
+			<origin xyz="0 0 -0.025" rpy="0 0 0"/>
+			<geometry>
+				<box size="2.5 1.5 0.05"/>
+			</geometry>
+		</collision>
+		
+		<inertial>
+			<!-- inertial is slightly different, should have an origin as with visual and collision, but also a mass and inertial properties-->
+			<!-- the mass here is arbitrary, and the inertia technically is as well as it is a fixed joint-->
+			<!-- the video that this is an example from did actually correctkly -->
+			<origin xyz="0 0 -0.025" rpy="0 0 0"/>
+			<mass value="12"/>
+			<inertia ixx="2.26" ixy="0" ixz="0" iyy="6.26" iyz="0" izz="8.5"/>
+		</inertial>
+	</link>
+	
+	<!-- leg joints -->
+	<joint name="leg1_joint" type="fixed">
+		<!-- origin is FROM the old joint origin to the new joint origin -->
+		<!-- in this case of course it is from the surface of the flat base plate -->
+		<origin xyz="0.75 0.4 0.2" rpy="0 0 0"/>
+		<parent link="base_link"/>
+		<child link="leg1_link"/>
+	</joint>
+	<joint name="leg2_joint" type="fixed">
+		<origin xyz="0.75 -0.4 0.2" rpy="0 0 0"/>
+		<parent link="base_link"/>
+		<child link="leg2_link"/>
+	</joint>
+	<joint name="leg3_joint" type="fixed">
+		<origin xyz="-0.75 0.4 0.2" rpy="0 0 0"/>
+		<parent link="base_link"/>
+		<child link="leg3_link"/>
+	</joint>
+	<joint name="leg4_joint" type="fixed">
+		<origin xyz="-0.75 -0.4 0.2" rpy="0 0 0"/>
+		<parent link="base_link"/>
+		<child link="leg4_link"/>
+	</joint>
+	
+	<!-- upper frame joints -->
+	<joint name="upperFrame1_joint" type="fixed">
+		<!-- origin is FROM the old joint origin to the new joint origin -->
+		<!-- in this case of course it is from the surface of the flat base plate -->
+		<origin xyz="-0.75 0 0.375" rpy="0 0 0"/>
+		<parent link="base_link"/>
+		<child link="upperFrame1_link"/>
+	</joint>
+	<joint name="upperFrame2_joint" type="fixed">
+		<!-- origin is FROM the old joint origin to the new joint origin -->
+		<!-- in this case of course it is from the surface of the flat base plate -->
+		<origin xyz="0.75 0 0.375" rpy="0 0 0"/>
+		<parent link="base_link"/>
+		<child link="upperFrame2_link"/>
+	</joint>
+	<joint name="upperFrame3_joint" type="fixed">
+		<!-- origin is FROM the old joint origin to the new joint origin -->
+		<!-- in this case of course it is from the surface of the flat base plate -->
+		<origin xyz="0 0.4 0.375" rpy="0 0 0"/>
+		<parent link="base_link"/>
+		<child link="upperFrame3_link"/>
+	</joint>
+	<joint name="upperFrame4_joint" type="fixed">
+		<!-- origin is FROM the old joint origin to the new joint origin -->
+		<!-- in this case of course it is from the surface of the flat base plate -->
+		<origin xyz="0 -0.4 0.375" rpy="0 0 0"/>
+		<parent link="base_link"/>
+		<child link="upperFrame4_link"/>
+	</joint>
+	
+	<!-- leg links-->
+	<link name="leg1_link">
+		<visual>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.05 0.05 0.4"/>
+			</geometry>
+			<material name="blue">
+				<color rgba="0 0 255 1"/>
+			</material>
+		</visual>
+
+		<collision>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.05 0.05 0.4"/>
+			</geometry>
+		</collision>
+
+		<inertial>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<mass value="2"/>
+			<inertia ixx="2.26" ixy="0" ixz="0" iyy="6.26" iyz="0" izz="8.5"/>
+		</inertial>
+	</link>
+	<link name="leg2_link">
+		<visual>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.05 0.05 0.4"/>
+			</geometry>
+			<material name="blue">
+			</material>
+		</visual>
+
+		<collision>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.05 0.05 0.4"/>
+			</geometry>
+		</collision>
+
+		<inertial>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<mass value="2"/>
+			<inertia ixx="2.26" ixy="0" ixz="0" iyy="6.26" iyz="0" izz="8.5"/>
+		</inertial>
+	</link>
+	<link name="leg3_link">
+		<visual>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.05 0.05 0.4"/>
+			</geometry>
+			<material name="blue">
+			</material>
+		</visual>
+
+		<collision>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.05 0.05 0.4"/>
+			</geometry>
+		</collision>
+
+		<inertial>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<mass value="2"/>
+			<inertia ixx="2.26" ixy="0" ixz="0" iyy="6.26" iyz="0" izz="8.5"/>
+		</inertial>
+	</link>
+	<link name="leg4_link">
+		<visual>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.05 0.05 0.4"/>
+			</geometry>
+			<material name="blue">
+			</material>
+		</visual>
+
+		<collision>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.05 0.05 0.4"/>
+			</geometry>
+		</collision>
+
+		<inertial>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<mass value="2"/>
+			<inertia ixx="2.26" ixy="0" ixz="0" iyy="6.26" iyz="0" izz="8.5"/>
+		</inertial>
+	</link>
+	
+	<!-- upper frame links -->
+	<link name="upperFrame1_link">
+		<visual>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.05 0.85 0.05"/>
+			</geometry>
+			<material name="blue">
+			</material>
+		</visual>
+
+		<collision>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.05 0.85 0.05"/>
+			</geometry>
+		</collision>
+
+		<inertial>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<mass value="2"/>
+			<inertia ixx="2.26" ixy="0" ixz="0" iyy="6.26" iyz="0" izz="8.5"/>
+		</inertial>
+	</link>
+	<link name="upperFrame2_link">
+		<visual>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.05 0.85 0.05"/>
+			</geometry>
+			<material name="blue">
+			</material>
+		</visual>
+
+		<collision>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.05 0.85 0.05"/>
+			</geometry>
+		</collision>
+
+		<inertial>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<mass value="2"/>
+			<inertia ixx="2.26" ixy="0" ixz="0" iyy="6.26" iyz="0" izz="8.5"/>
+		</inertial>
+	</link>
+	<link name="upperFrame3_link">
+		<visual>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="1.55 0.05 0.05"/>
+			</geometry>
+			<material name="blue">
+			</material>
+		</visual>
+
+		<collision>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="1.55 0.05 0.05"/>
+			</geometry>
+		</collision>
+
+		<inertial>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<mass value="2"/>
+			<inertia ixx="2.26" ixy="0" ixz="0" iyy="6.26" iyz="0" izz="8.5"/>
+		</inertial>
+	</link>
+	<link name="upperFrame4_link">
+		<visual>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="1.55 0.05 0.05"/>
+			</geometry>
+			<material name="blue">
+			</material>
+		</visual>
+
+		<collision>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="1.55 0.05 0.05"/>
+			</geometry>
+		</collision>
+
+		<inertial>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<mass value="2"/>
+			<inertia ixx="2.26" ixy="0" ixz="0" iyy="6.26" iyz="0" izz="8.5"/>
+		</inertial>
+	</link>
+
+	<!-- y-axis joint (that slides along the x-direction) -->
+	<joint name="yaxis_sliding_joint" type="prismatic">
+		<!-- origin is FROM the old joint origin to the new joint origin -->
+		<!-- in this case it is from the centroid of the first upper frame section -->
+		<origin xyz="0.025 0 0.075" rpy="0 0 0"/>
+		<parent link="upperFrame1_link"/>
+		<child link="yaxis_link"/>
+		<!-- we have to define the axis about which the joint slides -->
+		<axis xyz="1 0 0"/>
+		<limit lower="0" upper="1.2" velocity="100" effort="100"/>
+	</joint>
+
+	<!-- y-axis link  -->
+	<link name="yaxis_link">
+		<visual>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.1 0.85 0.1"/>
+			</geometry>
+			<material name="red">
+				<color rgba="255 0 0 1"/>
+			</material>
+		</visual>
+
+		<collision>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.1 0.85 0.1"/>
+			</geometry>
+		</collision>
+
+		<inertial>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<mass value="2"/>
+			<inertia ixx="2.26" ixy="0" ixz="0" iyy="6.26" iyz="0" izz="8.5"/>
+		</inertial>
+	</link>
+
+	<!-- z-axis joint (that slides along the y-direction) -->>
+	<joint name="zaxis_sliding_joint" type="prismatic">
+		<!-- origin is FROM the old joint origin to the new joint origin -->
+		<!-- in this case it is from the centroid of the first upper frame section -->
+		<origin xyz="0.1 0 0" rpy="0 0 0"/>
+		<parent link="yaxis_link"/>
+		<child link="zaxis_link"/>
+		<!-- we have to define the axis about which the joint slides -->
+		<axis xyz="0 1 0"/>
+		<limit lower="-0.3" upper="0.3" velocity="100" effort="100"/>
+	</joint>
+
+	<!-- z-axis link  -->
+	<link name="zaxis_link">
+		<visual>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.1 0.1 0.8"/>
+			</geometry>
+			<material name="orange">
+				<color rgba="211 84 0 1"/>
+			</material>
+		</visual>
+
+		<collision>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.1 0.1 0.8"/>
+			</geometry>
+		</collision>
+
+		<inertial>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<mass value="2"/>
+			<inertia ixx="2.26" ixy="0" ixz="0" iyy="6.26" iyz="0" izz="8.5"/>
+		</inertial>
+	</link>
+
+	<!-- gimbal frame joint (that slides along the z-direction) -->>
+	<joint name="gimbal_frame_sliding_joint" type="prismatic">
+		<!-- origin is FROM the old joint origin to the new joint origin -->
+		<!-- in this case it is from the centroid of the first upper frame section -->
+		<origin xyz="0.1 0 0" rpy="0 0 0"/>
+		<parent link="zaxis_link"/>
+		<child link="gimbal_frame_link"/>
+		<!-- we have to define the axis about which the joint slides -->
+		<axis xyz="0 0 1"/>
+		<limit lower="-0.35" upper="0.35" velocity="100" effort="100"/>
+	</joint>
+
+	<!-- gimbal frame link  -->
+	<link name="gimbal_frame_link">
+		<visual>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.1 0.1 0.1"/>
+			</geometry>
+			<material name="purple">
+				<color rgba="211 0 81 1"/>
+			</material>
+		</visual>
+
+		<collision>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<box size="0.1 0.1 0.1"/>
+			</geometry>
+		</collision>
+
+		<inertial>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<mass value="2"/>
+			<inertia ixx="2.26" ixy="0" ixz="0" iyy="6.26" iyz="0" izz="8.5"/>
+		</inertial>
+	</link>
+</robot>

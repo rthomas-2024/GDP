@@ -269,10 +269,11 @@ def EulerEquations(t, stateVec, T_ext_func):
     T_vec = np.array([T1, T2, T3])
     omega_vec = np.array([omega1, omega2, omega3])
 
-    I_mult_omegaDot = T_vec-np.cross(omega_vec, I @ omega_vec)
-    omegaDot = np.linalg.inv(I) @ I_mult_omegaDot #returns the dw/dt full vector
+    I_mult_omegaDot = T_vec-np.cross(omega_vec, np.dot(I, omega_vec))
 
-    qDot = getAmat(omega) @ q
+    omegaDot = np.dot(np.linalg.inv(I), I_mult_omegaDot) #returns the dw/dt full vector
+
+    qDot = 0.5 * getAmat(omega) @ q
 
     stateVecDot = np.zeros([7])
     stateVecDot[0:3] = omegaDot
@@ -349,12 +350,11 @@ def plottingFunc(vertices, centroidVec, omegaVec, Hvec, plotComponents):
     if plotComponents[3]:  # Angular momentum vector plotting
         #print(Hvec)
         ax.quiver(centroidVec[0], centroidVec[1], centroidVec[2], Hvec[0], Hvec[1], Hvec[2], label = 'Angular Momentum', color='k')
-def getAttitudes(theta0, ts, qs):
+def getAttitudes(ts, qs):
     thetas = np.zeros([len(ts), 3])
-    thetas[0,:] = theta0
 
-    for i in range(len(ts)-1):
-        thetas[i+1,:] = DCMtoEuler(quaternionToDCM(qs[:,i+1]))
+    for i in range(len(ts)):
+        thetas[i,:] = DCMtoEuler(quaternionToDCM(qs[:,i]))
 
     return thetas
 def pybulletPlot(centroidVec, q, dt):
@@ -401,20 +401,20 @@ I = np.array([[1,0,0],
               [0,1,0],
               [0,0,1]]) #inertial matrix
 
-w0 = np.array([0,np.deg2rad(20),0]) #initial angular velocity
-theta0 = np.array([0,0,0]) #initial attitude in degrees (roll, pitch, yaw)
+w0 = np.array([0,0,0]) #initial angular velocity
+theta0 = np.array([43, 20, 30]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in body frame
-   T1 = 0
+   T1 = 1
    T2 = 0
-   T3 = 0
+   T3 = 2
    return np.array([T1, T2, T3])
 
 tspan = np.array([0, 60]) #spans one minute (start and stop)
 dt = 0.01 #timestep in seconds
 
 triangleInequality(I) #checks that the object exists
-theta0 = theta0 * 2*np.pi/360 #convert attitude to radians
+theta0 = np.deg2rad(theta0) #convert attitude to radians
 
 
 
@@ -456,13 +456,13 @@ T3s = [T_ext_func(t)[2] for t in t_eval]
 #           FIND ATTITUDE OVER TIME           #
 ###############################################
 
-thetas = getAttitudes(theta0, t_eval, qs)
+thetas = getAttitudes(t_eval, qs)
 #attitudes are found in radians from the functions, so are converted to dgrees when plotted below
 
 fig4 = plt.figure(figsize=(10,10))
-plt.plot(t_eval, thetas[:,0]*360/(2*np.pi), color='b', label='Roll')
-plt.plot(t_eval, thetas[:,1]*360/(2*np.pi), color='r', label='Pitch')
-plt.plot(t_eval, thetas[:,2]*360/(2*np.pi), color='g', label='Yaw')
+plt.plot(t_eval, np.rad2deg(thetas[:,0]), color='b', label='Roll')
+plt.plot(t_eval, np.rad2deg(thetas[:,1]), color='r', label='Pitch')
+plt.plot(t_eval, np.rad2deg(thetas[:,2]), color='g', label='Yaw')
 plt.grid()
 plt.xlabel('time (s)')
 plt.ylabel('Angle (deg)')
