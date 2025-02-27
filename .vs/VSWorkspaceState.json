@@ -1,7 +1,8 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\Attitude"
   ],
-  "SelectedNode": "\\Dynamic_Model.py",
+  "SelectedNode": "\\Dynamic_Model_WithREALTIME_Control_out_of_func.py",
   "PreviewInSolutionExplorer": false
 }

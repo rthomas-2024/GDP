@@ -606,7 +606,7 @@ def cw_calc_dv0(dr0, dr1, t, n):
     dv0 = np.dot(np.linalg.inv(phi_rv), dr1 - np.dot(phi_rr,dr0))
     return dv0
 
-def PlanTrajectory(NumWPs, drvec, tvec, dr0, dv0, dt, CONTROLLED_DOCK = False):
+def PlanTrajectory(NumWPs, drvec, tvec, dr0, dv0, dt, CONTROLLED_DOCK = False, t_wait = 0):
     # this creates a trajectory (position, drs, and time, ts) that follows a set of waypoints (drvec)
     # each waypoint, drvec(n), takes time t_n-1_n to complete
     # a container for the position (drs), velocities (dvs), const interval time (ts) and total deltaV is retuned
@@ -614,6 +614,8 @@ def PlanTrajectory(NumWPs, drvec, tvec, dr0, dv0, dt, CONTROLLED_DOCK = False):
     tmax = sum(tvec)
     deltavs = np.zeros([NumWPs,3])
     Traj = np.zeros([int(tmax/dt + 1),7])
+    if CONTROLLED_DOCK == True:
+        Traj = np.zeros([int(tmax/dt + 1 + t_wait),7])
     dr0_ii = dr0
     dv0minus_ii = dv0
     dr_index = 0
@@ -862,31 +864,6 @@ def Calc_Accel_Control(dVs, t, Traj_a, u_x_thresh, u_y_thresh, u_z_thresh, dt, P
     
     return u_x, u_y, u_z, PID_params_update
 
-def Calc_FeedForward_Control(da_ref,t,interp_x, interp_y, interp_z, interp_dx, interp_dy, interp_dz,u_x_thresh, u_y_thresh, u_z_thresh):
-    
-    dr_ref = interpolate_3d(interp_x,interp_y,interp_z, t)
-    dv_ref = interpolate_3d(interp_dx,interp_dy,interp_dz, t)
-
-    u_x = da_ref[0] - 2*n*dv_ref[1] - 3*(n**2)*dr_ref[0]
-    u_y = da_ref[1] + 2*n*dv_ref[0]
-    u_z = da_ref[2] + dr_ref[2]*n*n
-    
-    u_x = Kfx*u_x
-    u_y = Kfy*u_y
-    u_z= Kfz*u_z
-
-    if u_x > u_x_thresh: u_x = u_x_thresh
-    elif u_x < -u_x_thresh: u_x = -u_x_thresh
-    else: u_x = 0
-    if u_y > u_y_thresh: u_y = u_y_thresh
-    elif u_y < -u_y_thresh: u_y = -u_y_thresh
-    else: u_y = 0
-    if u_z > u_z_thresh: u_z = u_z_thresh
-    elif u_z < -u_z_thresh: u_z = -u_z_thresh
-    else: u_z = 0
-    
-    return u_x, u_y, u_z
-
 
 # COMBINED DIFFERENTIAL EQUATION
 def TrajandAtt(t,stateVec,T_ext_func,u_x,u_y,u_z):
@@ -1059,9 +1036,9 @@ dr4 = np.array([0.1,0,0])
 dr5 = np.array([0,0,0])
 t01 = t*0.2
 t12 = t*0.2
-t23 = t*0.3
-t34 = t*0.2
-t45 = t*0.1
+t23 = t*0.2
+t34 = t*0.1
+t45 = t*0.3
 drvec = np.array([dr1,dr2,dr3,dr4,dr5])
 tvec = np.array([t01,t12,t23,t34,t45])
 # This is the planned trajectory
@@ -1183,27 +1160,15 @@ integral_z = 0
 prev_error_z = 0
 prev_time = 0
 
-Ku = 0.4
-Tu = 12
-
-kPx = 0.8*Ku
+kPx = 4
 kIx = 0
-kDx = 0.1*Ku*Tu
-kPy = 0.8*Ku
+kDx = 2
+kPy = 4
 kIy = 0
-kDy = 0.1*Ku*Tu
-kPz = 0.8*Ku
+kDy = 2
+kPz = 4
 kIz = 0
-kDz = 0.1*Ku*Tu
-# kPx = 0
-# kIx = 0
-# kDx = 0
-# kPy = 0
-# kIy = 0
-# kDy = 0
-# kPz = 0
-# kIz = 0
-# kDz = 0
+kDz = 2
 
 integral_dx = 0
 prev_error_dx = 0
@@ -1215,13 +1180,13 @@ prev_time = 0
 
 kPdx = 4
 kIdx = 0
-kDdx = 2
+kDdx = 1
 kPdy = 4
 kIdy = 0
-kDdy = 2
+kDdy = 1
 kPdz = 4
 kIdz = 0
-kDdz = 2
+kDdz = 1
 
 integral_ddx = 0
 prev_error_ddx = 0
@@ -1231,50 +1196,15 @@ integral_ddz = 0
 prev_error_ddz = 0
 prev_time = 0
 
-kPddx = 8
+kPddx = 10
 kIddx = 0
-kDddx = 3
-kPddy = 8
+kDddx = 4
+kPddy = 10
 kIddy = 0
-kDddy = 3
-kPddz = 8
+kDddy = 4
+kPddz = 10
 kIddz = 0
-kDddz = 3
-
-############## old ones
-kPx = 6
-kIx = 0
-kDx = 4
-kPy = 6
-kIy = 0
-kDy = 4
-kPz = 6
-kIz = 0
-kDz = 4
-
-kPdx = 4
-kIdx = 0
-kDdx = 3
-kPdy = 4
-kIdy = 0
-kDdy = 3
-kPdz = 4
-kIdz = 0
-kDdz = 3
-
-kPddx = 7
-kIddx = 0
-kDddx = 10
-kPddy = 7
-kIddy = 0
-kDddy = 10
-kPddz = 7
-kIddz = 0
-kDddz = 10
-# feedforward gains
-Kfx = 0
-Kfy = 0
-Kfz = 0
+kDddz = 4
 
 # kPx = 0
 # kIx = 0
@@ -1425,17 +1355,14 @@ for ii in range(0,num_datapoints-1):
     u_x,u_y,u_z,PID_params_trajectory, dr_error = Calc_Pos_Control(r_LVLH_C[:,ii], tii, interp_x, interp_y, interp_z, u_x_thresh, u_y_thresh, u_z_thresh, dt, PID_params_trajectory)    
     u_dx,u_dy,u_dz,PID_vel_params_trajectory, dr_error = Calc_Vel_Control(v_LVLH_C[:,ii], tii, interp_dx, interp_dy, interp_dz, u_x_thresh, u_y_thresh, u_z_thresh, dt, PID_vel_params_trajectory)    
     if ii==0: # can't calc accel in first time step
-        u_ddx,u_ddy,u_ddz =  0, 0, 0
-        u_xff,u_yff,u_zff = 0, 0, 0
+        u_ddx,u_ddy,u_ddz =  0,0,0
     else:
         u_ddx,u_ddy,u_ddz,PID_accel_params_trajectory = Calc_Accel_Control(v_LVLH_C[:,ii-1:ii+1], t, Traj_a[ii,:], u_x_thresh, u_y_thresh, u_z_thresh, dt, PID_accel_params_trajectory)    
-        # feedforward control
-        u_xff,u_yff,u_zff = Calc_FeedForward_Control(Traj_a[ii,:],t,interp_x, interp_y, interp_z,interp_dx, interp_dy, interp_dz,u_x_thresh, u_y_thresh, u_z_thresh)
 
     # Assign control commands
-    u_x = u_x+u_dx+u_ddx+u_xff
-    u_y = u_y+u_dy+u_ddy+u_yff
-    u_z = u_z+u_dz+u_ddz+u_zff
+    u_x = u_x+u_dx+u_ddx
+    u_y = u_y+u_dy+u_ddy
+    u_z = u_z+u_dz+u_ddz
     solver.set_f_params(T_ext_func,u_x,u_y,u_z)
 
     # Propogate motion one dt
