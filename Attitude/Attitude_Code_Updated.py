@@ -350,6 +350,16 @@ def plottingFunc(vertices, centroidVec, omegaVec, Hvec, plotComponents):
     if plotComponents[3]:  # Angular momentum vector plotting
         #print(Hvec)
         ax.quiver(centroidVec[0], centroidVec[1], centroidVec[2], Hvec[0], Hvec[1], Hvec[2], label = 'Angular Momentum', color='k')
+
+    #plot body roll
+    ax.quiver(centroidVec[0], centroidVec[1], centroidVec[2], ..., label = 'Roll axis (body)', color='r')
+
+    #plot body pitch
+    ax.quiver(centroidVec[0], centroidVec[1], centroidVec[2], ..., label = 'Pitch axis (body)', color='g')
+
+    #plot body yaw
+    ax.quiver(centroidVec[0], centroidVec[1], centroidVec[2], ..., label = 'Yaw axis (body)', color='b')
+
 def getAttitudes(ts, qs):
     thetas = np.zeros([len(ts), 3])
 
@@ -401,13 +411,13 @@ I = np.array([[1,0,0],
               [0,1,0],
               [0,0,1]]) #inertial matrix
 
-w0 = np.array([0,0,0]) #initial angular velocity
-theta0 = np.array([43, 20, 30]) #initial attitude in degrees (roll, pitch, yaw)
+w0 = np.array([0,1,0]) #initial angular velocity
+theta0 = np.array([0,0,30]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in body frame
-   T1 = 1
+   T1 = 0
    T2 = 0
-   T3 = 2
+   T3 = 0
    return np.array([T1, T2, T3])
 
 tspan = np.array([0, 60]) #spans one minute (start and stop)
