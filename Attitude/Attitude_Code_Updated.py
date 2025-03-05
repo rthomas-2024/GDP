@@ -275,6 +275,9 @@ def EulerEquations(t, stateVec, T_ext_func):
 
     qDot = 0.5 * getAmat(omega) @ q
 
+    #normalise incoming quaternion to minimise quaternion drift while changing each quaternion minimally as to still represent the correct rotation
+    q /= np.linalg.norm(q)
+
     stateVecDot = np.zeros([7])
     stateVecDot[0:3] = omegaDot
     stateVecDot[3:7] = qDot
