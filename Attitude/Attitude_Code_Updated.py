@@ -110,6 +110,8 @@ def getGimbalLockAngles(sinPitch, C22, C32):
 #TRANSFORMATION FUNCTIONS
 def quaternionToDCM(beta):
     #beta passed in as a quaternion (4 value vector)
+    #normalise quaternion to ensure that DCM constraint is met
+    beta /= np.linalg.norm(beta)
     b0, b1, b2, b3 = beta
 
     C11 = b0**2+b1**2-b2**2-b3**2
@@ -414,16 +416,16 @@ I = np.array([[1,0,0],
               [0,1,0],
               [0,0,1]]) #inertial matrix
 
-w0 = np.array([0,0,0]) #initial angular velocity in the BODY FRAME
-theta0 = np.array([0,0,0]) #initial attitude in degrees (roll, pitch, yaw)
+w0 = np.array([0,0.01,0]) #initial angular velocity in the BODY FRAME
+theta0 = np.array([0,59,0]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in BODY FRAME
-   T1 = 0.01
-   T2 = 0.02
+   T1 = 0
+   T2 = 0
    T3 = 0
    return np.array([T1, T2, T3])
 
-tspan = np.array([0, 60]) #spans one minute (start and stop)
+tspan = np.array([0, 1000]) #spans one minute (start and stop)
 dt = 0.01 #timestep in seconds
 
 triangleInequality(I) #checks that the object exists

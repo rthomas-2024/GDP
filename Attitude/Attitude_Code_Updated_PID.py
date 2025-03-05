@@ -110,6 +110,7 @@ def getGimbalLockAngles(sinPitch, C22, C32):
 #TRANSFORMATION FUNCTIONS
 def quaternionToDCM(beta):
     #beta passed in as a quaternion (4 value vector)
+    beta /= np.linalg.norm(beta)
     b0, b1, b2, b3 = beta
 
     C11 = b0**2+b1**2-b2**2-b3**2
@@ -304,6 +305,9 @@ def EulerEquations(t, stateVec, T_ext_func):
     omegaDot = np.dot(np.linalg.inv(I), I_mult_omegaDot) #returns the dw/dt full vector
 
     qDot = 0.5 * getAmat(omega) @ q
+
+    #normalise incoming quaternion to minimise quaternion drift while changing each quaternion minimally as to still represent the correct rotation
+    q /= np.linalg.norm(q)
 
     stateVecDot = np.zeros([7])
     stateVecDot[0:3] = omegaDot
