@@ -264,6 +264,9 @@ def EulerEquations(t, stateVec, T_ext_func):
     omega = stateVec[0:3]
     q = stateVec[3:7]
 
+    #normalise incoming quaternion to minimise quaternion drift while changing each quaternion minimally as to still represent the correct rotation
+    q /= np.linalg.norm(q)
+
     # Control stuff
     global prev_time, integral_x,integral_y,integral_z,prev_error_x,prev_error_y,prev_error_z, integral_roll,integral_pitch,integral_yaw,prev_error_roll,prev_error_pitch,prev_error_yaw
     prev_time_iter = prev_time
@@ -305,9 +308,6 @@ def EulerEquations(t, stateVec, T_ext_func):
     omegaDot = np.dot(np.linalg.inv(I), I_mult_omegaDot) #returns the dw/dt full vector
 
     qDot = 0.5 * getAmat(omega) @ q
-
-    #normalise incoming quaternion to minimise quaternion drift while changing each quaternion minimally as to still represent the correct rotation
-    q /= np.linalg.norm(q)
 
     stateVecDot = np.zeros([7])
     stateVecDot[0:3] = omegaDot
@@ -522,8 +522,19 @@ qs = fullSolution.y[3:7, :]
 #find the error in the norm of the quaternions from 1
 qErr = np.zeros([len(qs[0,:])])
 
+constVioCount = 0 #create a variable to count the number of quaternion constraint violations
 for i in range(len(qs[0,:])):
-    qErr[i] = 1 - norm(qs[:,i])
+    qErr[i] = 1 - norm(qs[:,i]) #'save' the error before normalisation
+    #now normalise quaternions for use having saved the errors after propogation
+    qs[:,i] /= np.linalg.norm(qs[:,i])
+    qs[:,i] /= np.linalg.norm(qs[:,i])
+    qs[:,i] /= np.linalg.norm(qs[:,i])
+
+    if np.linalg.norm(qs[:,i]) != 1:
+        constVioCount += 1
+
+print("Quaternions:" + str(len(qs[0,:])))
+print("Violations:" + str(constVioCount))
 
 
 #find the thrust values over time

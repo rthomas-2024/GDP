@@ -110,8 +110,12 @@ def getGimbalLockAngles(sinPitch, C22, C32):
 #TRANSFORMATION FUNCTIONS
 def quaternionToDCM(beta):
     #beta passed in as a quaternion (4 value vector)
-    #normalise quaternion to ensure that DCM constraint is met
-    beta /= np.linalg.norm(beta)
+    #check to ensure that DCM constraint is met
+    #it should be already, but to avoid this function failing, a further check should be done
+    if np.linalg.norm(beta) != 1:
+        print("Quaternion violation")
+        print(np.linalg.norm(beta))
+
     b0, b1, b2, b3 = beta
 
     C11 = b0**2+b1**2-b2**2-b3**2
@@ -275,10 +279,10 @@ def EulerEquations(t, stateVec, T_ext_func):
 
     omegaDot = np.dot(np.linalg.inv(I), I_mult_omegaDot) #returns the dw/dt full vector
 
-    qDot = 0.5 * getAmat(omega) @ q
-
     #normalise incoming quaternion to minimise quaternion drift while changing each quaternion minimally as to still represent the correct rotation
     q /= np.linalg.norm(q)
+
+    qDot = 0.5 * getAmat(omega) @ q
 
     stateVecDot = np.zeros([7])
     stateVecDot[0:3] = omegaDot
@@ -420,8 +424,8 @@ w0 = np.array([0,0.01,0]) #initial angular velocity in the BODY FRAME
 theta0 = np.array([0,59,0]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in BODY FRAME
-   T1 = 0
-   T2 = 0
+   T1 = 0.01*np.sin(0.1*t)
+   T2 = 0.03*np.sin(0.2*t)
    T3 = 0
    return np.array([T1, T2, T3])
 
@@ -457,8 +461,19 @@ qs = fullSolution.y[3:7, :]
 #find the error in the norm of the quaternions from 1
 qErr = np.zeros([len(qs[0,:])])
 
+constVioCount = 0 #create a variable to count the number of quaternion constraint violations
 for i in range(len(qs[0,:])):
-    qErr[i] = 1 - norm(qs[:,i])
+    qErr[i] = 1 - norm(qs[:,i]) #'save' the error before normalisation
+    #now normalise quaternions for use having saved the errors after propogation
+    qs[:,i] /= np.linalg.norm(qs[:,i])
+    qs[:,i] /= np.linalg.norm(qs[:,i])
+    qs[:,i] /= np.linalg.norm(qs[:,i])
+
+    if np.linalg.norm(qs[:,i]) != 1:
+        constVioCount += 1
+
+print("Quaternions:" + str(len(qs[0,:])))
+print("Violations:" + str(constVioCount))
 
 
 #find the thrust values over time
