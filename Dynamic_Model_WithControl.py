@@ -785,13 +785,13 @@ def TrajandAtt(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
     q_err = 1-norm(q)
     # C_err = quaternionToDCM(q_err)
     # roll_err, pitch_err, yaw_err = DCMtoEuler(C_err)
-    print("Quaternion error: {}".format(q_err))
-    print("roll: {}".format(roll), "pitch: {}".format(pitch), "yaw: {}".format(yaw))
+    # print("Quaternion error: {}".format(q_err))
+    # print("roll: {}".format(roll), "pitch: {}".format(pitch), "yaw: {}".format(yaw))
     u_roll, integral_roll, prev_error_roll, prev_time = pid_control(t, roll_err, kP_roll, kI_roll, kD_roll, integral_roll, prev_error_roll, prev_time_iter)
     u_pitch, integral_pitch, prev_error_pitch, prev_time = pid_control(t, pitch_err, kP_pitch, kI_pitch, kD_pitch, integral_pitch, prev_error_pitch, prev_time_iter)
     u_yaw, integral_yaw, prev_error_yaw, prev_time = pid_control(t, yaw_err, kP_yaw, kI_yaw, kD_yaw, integral_yaw, prev_error_yaw, prev_time_iter)
 
-    print("u_roll: {}".format(u_roll),"u_pitch: {}".format(u_pitch),"u_yaw: {}".format(u_yaw))
+    # print("u_roll: {}".format(u_roll),"u_pitch: {}".format(u_pitch),"u_yaw: {}".format(u_yaw))
     
     if u_roll > u_roll_thresh: u_roll = u_roll_max
     elif u_roll < -u_roll_thresh: u_roll = -u_roll_max
@@ -976,7 +976,7 @@ def TrajandAttREDUCED(t,stateVec,T_ext_func,interp_dx,interp_dy,interp_dz):
 #                   INPUTS                    #
 ###############################################
 I = np.array([[1,0,0], [0,1,0],[0,0,1]]) #inertial matrix
-w0 = np.array([0.10,0.10,0.10]) #initial angular velocity
+w0 = np.array([0,0,0]) #initial angular velocity
 theta0 = np.array([0,0,0]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in body frame
@@ -1110,15 +1110,15 @@ prev_error_pitch = 0
 integral_yaw = 0
 prev_error_yaw = 0
 
-kP_roll = 0#1*0.8#2*0.8
+kP_roll = 1
 kI_roll = 0
-kD_roll = 0#0.1*1*270#2*0.1*40
-kP_pitch = 0#1*0.8#2*0.8
+kD_roll = 0#2*0.1*40
+kP_pitch = 0#2*0.8
 kI_pitch = 0
-kD_pitch = 0#0.1*1*270#1*0.1*40
-kP_yaw = 0#1*0.8#2*0.8
+kD_pitch = 0#1*0.1*40
+kP_yaw = 0#2*0.8
 kI_yaw = 0
-kD_yaw = 0#0.1*1*270#1*0.1*40
+kD_yaw = 0#1*0.1*40
 
 u_roll_max = 10e-5 # m/sec^2
 u_pitch_max = 10e-5 # rad/sec^2

@@ -263,9 +263,39 @@ def EulerEquations(t, stateVec, T_ext_func):
     omega = stateVec[0:3]
     q = stateVec[3:7]
 
+    # Control stuff
+    global prev_time, integral_x,integral_y,integral_z,prev_error_x,prev_error_y,prev_error_z, integral_roll,integral_pitch,integral_yaw,prev_error_roll,prev_error_pitch,prev_error_yaw
+    prev_time_iter = prev_time
+    C = quaternionToDCM(q)
+    roll, pitch, yaw = DCMtoEuler(C)
+    roll_err = roll_ref - roll
+    pitch_err = pitch_ref - pitch
+    yaw_err = yaw_ref - yaw
+    
+    u_roll, integral_roll, prev_error_roll, prev_time = pid_control(t, roll_err, kP_roll, kI_roll, kD_roll, integral_roll, prev_error_roll, prev_time_iter)
+    u_pitch, integral_pitch, prev_error_pitch, prev_time = pid_control(t, pitch_err, kP_pitch, kI_pitch, kD_pitch, integral_pitch, prev_error_pitch, prev_time_iter)
+    u_yaw, integral_yaw, prev_error_yaw, prev_time = pid_control(t, yaw_err, kP_yaw, kI_yaw, kD_yaw, integral_yaw, prev_error_yaw, prev_time_iter)
+    print("Pitch: {}".format(pitch))
+    print("DCM : {}".format(C))
+    print("u_roll: {}".format(u_roll),"u_pitch: {}".format(u_pitch),"u_yaw: {}".format(u_yaw))
+
+    if u_roll > u_roll_thresh: u_roll = u_roll_thresh
+    elif u_roll < -u_roll_thresh: u_roll = -u_roll_thresh
+    else: u_roll = 0
+    if u_pitch > u_pitch_thresh: u_pitch = u_pitch_thresh
+    elif u_pitch < -u_pitch_thresh: u_pitch = -u_pitch_thresh
+    else: u_pitch = 0
+    if u_yaw > u_yaw_thresh: u_yaw = u_yaw_thresh
+    elif u_yaw < -u_yaw_thresh: u_yaw = -u_yaw_thresh
+    else: u_yaw = 0
+
+    
     omega1, omega2, omega3 = omega
     T1, T2, T3 = T_ext_func(t)
-
+    T1 = T1 + u_roll
+    T2 = T2 + u_pitch
+    T3 = T3 + u_yaw
+    
     T_vec = np.array([T1, T2, T3])
     omega_vec = np.array([omega1, omega2, omega3])
 
@@ -280,7 +310,7 @@ def EulerEquations(t, stateVec, T_ext_func):
     stateVecDot[3:7] = qDot
 
     #note quaternions used because it creates smooth interpolation for animations. this is called slerp
-
+    print(t)
     return stateVecDot
 def getVertices(centroid, length, q):
     #returns vertices with centroid and length arguments
@@ -392,17 +422,28 @@ def transformationTesting():
 
     print(eulerToDCM(euler))
 
+def pid_control(t, error, Kp, Ki, Kd, integral,previous_error, previous_time):
+    
+    # Calculate time step dynamically
+    dt = t - previous_time
+    
+    integral += error * dt
+    derivative = (error - previous_error) / dt if dt > 0 else 0
+    previous_error = error
+    previous_time = t
+    
+    return Kp * error + Ki * integral + Kd * derivative, integral, previous_error, previous_time
 
 
 ###############################################
 #                   INPUTS                    #
 ###############################################
-I = np.array([[1,0,0],
-              [0,1,0],
-              [0,0,1]]) #inertial matrix
+I = np.array([[5,0,0],
+              [0,5,0],
+              [0,0,5]]) #inertial matrix
 
-w0 = np.array([np.deg2rad(0),np.deg2rad(0),np.deg2rad(1)]) #initial angular velocity
-theta0 = np.array([0, 0, 0]) #initial attitude in degrees (roll, pitch, yaw)
+w0 = np.array([np.deg2rad(0),np.deg2rad(0),np.deg2rad(0)]) #initial angular velocity
+theta0 = np.array([30, 30, 30]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in body frame
    T1 = 0
@@ -410,12 +451,47 @@ def T_ext_func(t): #define the thrust over time in body frame
    T3 = 0
    return np.array([T1, T2, T3])
 
-tspan = np.array([0, 60]) #spans one minute (start and stop)
+tspan = np.array([0, 2000]) #spans one minute (start and stop)
 dt = 0.01 #timestep in seconds
 
 triangleInequality(I) #checks that the object exists
 theta0 = np.deg2rad(theta0) #convert attitude to radians
 
+
+###############################################
+#                   Control                   #
+###############################################
+
+# Attitude PID Parameters [roll pitch yaw]
+prev_time = 0
+integral_roll = 0
+prev_error_roll = 0
+integral_pitch = 0
+prev_error_pitch = 0
+integral_yaw = 0
+prev_error_yaw = 0
+
+Ku = 50
+Tu = 41
+kP_roll = 0.8*Ku
+kI_roll = 0
+kD_roll = 0.1*Ku*Tu#0.1*0.1*43
+kP_pitch = 0.8*Ku
+kI_pitch = 0
+kD_pitch = 0.1*Ku*Tu
+kP_yaw = 0.8*Ku
+kI_yaw = 0
+kD_yaw = 0.1*Ku*Tu
+
+u_roll_thresh = 5e-2
+u_pitch_thresh = 5e-2
+u_yaw_thresh = 5e-2
+
+roll_ref = np.deg2rad(0)
+pitch_ref = np.deg2rad(60)
+yaw_ref = np.deg2rad(40)
+C_ref = eulerToDCM(np.array([roll_ref,pitch_ref,yaw_ref]))
+q_ref = DCMtoQuaternion(C_ref)
 
 
 ###############################################
