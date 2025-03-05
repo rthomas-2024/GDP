@@ -1265,7 +1265,7 @@ if diagnosticsPlt:
 data_dict = {
     "time": t_eval,  # Time column
     "r_LVLH_C_x": r_LVLH_C[0, :], "r_LVLH_C_y": r_LVLH_C[1, :], "r_LVLH_C_z": r_LVLH_C[2, :],  # Position in LVLH
-    #"v_LVLH_C_x": v_LVLH_C[0, :], "v_LVLH_C_y": v_LVLH_C[1, :], "v_LVLH_C_z": v_LVLH_C[2, :],  # Velocity in LVLH
+    "v_LVLH_C_x": v_LVLH_C[0, :], "v_LVLH_C_y": v_LVLH_C[1, :], "v_LVLH_C_z": v_LVLH_C[2, :],  # Velocity in LVLH
     "roll": rollVec.flatten(), "pitch": pitchVec.flatten(), "yaw": yawVec.flatten(),  # Euler angles
     #"roll_rate": rollrateVec.flatten(), "pitch_rate": pitchrateVec.flatten(), "yaw_rate": yawrateVec.flatten()  # Euler rates
 }

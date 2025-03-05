@@ -2,6 +2,8 @@
 #                  IMPORTS                    #
 ###############################################
 from ast import Num
+from multiprocessing import Value
+from re import X
 import numpy as np
 from numpy import sin as s
 from numpy import cos as c
@@ -20,6 +22,7 @@ from matplotlib.animation import FuncAnimation
 from scipy.interpolate import interp1d
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.integrate import ode
+from scipy.linalg import expm
 
 import pandas as pd
 
@@ -887,6 +890,44 @@ def Calc_FeedForward_Control(da_ref,t,interp_x, interp_y, interp_z, interp_dx, i
     
     return u_x, u_y, u_z
 
+def STM_sol(X0_star, dt, n, f_x, f_y, f_z):
+    A_star = np.array([[0, 0, 0, 1, 0, 0, 0],
+                       [0, 0, 0, 0, 1, 0, 0],
+                       [0, 0, 0, 0, 0, 1, 0],
+                       [3*n*n, 0, 0, 0, 2*n, 0, f_x],
+                       [0, 0, 0, -2*n, 0, 0, f_y],
+                       [0, 0, -n*n, 0, 0, 0, f_z],
+                       [0, 0, 0, 0, 0, 0, 0]])
+    X1_star = expm(dt*A_star) @ X0_star
+    return X1_star
+
+def KalmanPredict(X0_star, cov_mat, dt, n, f_x, f_y, f_z, R_mat):
+    # 1) project the state forward using motion model
+    A_star = np.array([[0, 0, 0, 1, 0, 0, 0],
+                       [0, 0, 0, 0, 1, 0, 0],
+                       [0, 0, 0, 0, 0, 1, 0],
+                       [3*n*n, 0, 0, 0, 2*n, 0, f_x],
+                       [0, 0, 0, -2*n, 0, 0, f_y],
+                       [0, 0, -n*n, 0, 0, 0, f_z],
+                       [0, 0, 0, 0, 0, 0, 0]])
+    pred_X_star = expm(dt*A_star) @ X0_star
+    
+    # 2) project the error forward
+    pred_cov_mat = A_star@cov_mat@A_star.T + R_mat
+    
+    return pred_X_star, pred_cov_mat
+
+def KalmanUpdate(pred_X_star, pred_cov_mat, z, C_mat, Q_mat):
+    
+    # 3) Compute the Kalman gain matrix
+    K = pred_cov_mat @ C_mat.T @ np.linalg.inv(C_mat@pred_cov_mat@C_mat.T + Q_mat)
+    
+    # 4) Update to posterior belief
+    I = np.identity(7)
+    X_star = pred_X_star + K @ (z - C_mat@pred_X_star)
+    cov_mat = (I - K@C_mat)@pred_cov_mat
+
+    return X_star, cov_mat
 
 # COMBINED DIFFERENTIAL EQUATION
 def TrajandAtt(t,stateVec,T_ext_func,u_x,u_y,u_z):
@@ -1326,6 +1367,33 @@ yaw_ref = np.deg2rad(40)
 C_ref = eulerToDCM(np.array([roll_ref,pitch_ref,yaw_ref]))
 q_ref = DCMtoQuaternion(C_ref)
 
+
+###############################################
+#            ACCELERATOR FEATURE              #
+###############################################
+ACCELERATOR = True
+accel_multiplier = 20
+t_endAccel = 25
+if t_endAccel > t:
+    raise ValueError("Accelerator time is greater than total time")
+if isinstance(accel_multiplier, int) == False:
+    raise ValueError("accel_multiplier is not an integer")
+
+t_idx = np.argmin(np.abs(Traj[:,6] - t_endAccel)) # find index of Traj where the accelerating region ends.
+
+Traj_toaccel = Traj[0:t_idx,:] # extract the traj over the time period we want to accelerate
+total_rows = len(Traj_toaccel)
+indices = list(range(accel_multiplier, int(total_rows - 1), accel_multiplier))  # Compute evenly spaced indices Start from row index 'n'
+    
+if total_rows - 1 not in indices:# Ensure last row is included, this is for continuity when we move to the "non-accelerated" region after the final accelerated region
+    d_ind = total_rows-1 - indices[-1]
+    for ii in range(0,len(indices)): 
+        indices[ii] = indices[ii]+d_ind
+    indices = [x for x in indices if x > 0]
+
+Traj_accelerated = Traj_toaccel[indices] # this is the accelerated trajectory
+Traj_realtime = Traj[t_idx:,:] # trajectory to run in realtime AFTER accelerator region
+
 ###############################################
 #                 PROCESSING                  #
 ###############################################
@@ -1395,31 +1463,50 @@ isv[0:3] = w0
 isv[3:7] = q0
 isv[7:26] = rT_ECI0[0],rT_ECI0[1],rT_ECI0[2],vT_ECI0[0],vT_ECI0[1],vT_ECI0[2], rC_ECI0[0],rC_ECI0[1],rC_ECI0[2],vC_ECI0[0],vC_ECI0[1],vC_ECI0[2], rC_LVLH0[0],rC_LVLH0[1],rC_LVLH0[2],vC_LVLH0[0],vC_LVLH0[1],vC_LVLH0[2]
 start_time = time.perf_counter()
+u_x,u_y,u_z = 0,0,0
+
+r_LVLH_C_star = np.zeros([3,num_datapoints-1])
+v_LVLH_C_star = np.zeros([3,num_datapoints-1])
+
+# Initialise Covariance matrix
+cov_mat = np.identity(7)
+x_std,y_std,z_std,xdot_std,ydot_std,zdot_std,alpha_std = 1, 1, 1, 1, 1, 1, 0
+cov_mat[0,0],cov_mat[1,1],cov_mat[2,2],cov_mat[3,3],cov_mat[4,4],cov_mat[5,5],cov_mat[6,6] = x_std,y_std,z_std,xdot_std,ydot_std,zdot_std,alpha_std
+
+# Initialise Process noise matrix
+R_mat = np.identity(7)
+x_std,y_std,z_std,xdot_std,ydot_std,zdot_std,alpha_std = 1, 1, 1, 1, 1, 1, 0
+R_mat[0,0],R_mat[1,1],R_mat[2,2],R_mat[3,3],R_mat[4,4],R_mat[5,5],R_mat[6,6] = x_std,y_std,z_std,xdot_std,ydot_std,zdot_std,alpha_std
+
+# Initialise Sensor noise matrix
+Q_mat = np.identity(7)
+x_std,y_std,z_std,xdot_std,ydot_std,zdot_std,alpha_std = 1, 1, 1, 1, 1, 1, 0
+Q_mat[0,0],Q_mat[1,1],Q_mat[2,2],Q_mat[3,3],Q_mat[4,4],Q_mat[5,5],Q_mat[6,6] = x_std,y_std,z_std,xdot_std,ydot_std,zdot_std,alpha_std
+
+# Define the measurement matrix, C
+C_mat = np.identity(7)
+C_mat[0,0], C_mat[1,1], C_mat[2,2] = 1,1,1
 
 for ii in range(0,num_datapoints-1):
     
     # calculate time
     tii = dt*(1+ii) # first tii = dt
     tspan = np.array([0, dt])
-    t_eval = np.array([dt]) # when to store state matrix
+    t_eval = np.array([dt]) # when to store state matrix   
     
-    # # Check waypoint progress
-    # if tii > (t-t45 - dt):
-    #     print("Time = {} s".format(tii))
-    #     print("Ref v = {} m/s".format(Traj[ii,3:6]))
-    #     # first time of this is the zero velocity point
-    #     SLOWDOWN = True
-    # if SLOWDOWN == False:
-    #     # ref r and v @ ^ point until err is very smal
-    #     u_x,u_y,u_z,PID_params_trajectory, dr_error = Calc_Pos_Control(r_LVLH_C[:,ii], tii, interp_x, interp_y, interp_z, u_x_thresh, u_y_thresh, u_z_thresh, dt, PID_params_trajectory)    
-    #     u_dx,u_dy,u_dz,PID_vel_params_trajectory, dr_error = Calc_Vel_Control(v_LVLH_C[:,ii], tii, interp_dx, interp_dy, interp_dz, u_x_thresh, u_y_thresh, u_z_thresh, dt, PID_vel_params_trajectory)    
-    #     if ii==0: # can't calc accel in first time step
-    #         u_ddx,u_ddy,u_ddz =  0,0,0
-    #     else:
-    #         u_ddx,u_ddy,u_ddz,PID_accel_params_trajectory = Calc_Accel_Control(v_LVLH_C[:,ii-1:ii+1], t, Traj_a[ii,:], u_x_thresh, u_y_thresh, u_z_thresh, dt, PID_accel_params_trajectory)  
-               
-     
-        
+    # State Estimation
+    # Prior belief using motion model
+    X0_star = np.array([r_LVLH_C[0,ii],r_LVLH_C[1,ii],r_LVLH_C[2,ii], v_LVLH_C[0,ii],v_LVLH_C[1,ii],v_LVLH_C[2,ii], 1])
+    X1_star = STM_sol(X0_star,dt,n,u_x,u_y,u_z)
+    r_LVLH_C_star[:,ii] = X1_star[0:3]
+    v_LVLH_C_star[:,ii] = X1_star[3:6]
+    
+    # KF predict
+
+    # SOME CHECKER FOR Jon's camera measurements
+
+    # if we get a new measurement, update KF
+
 
     # calulate control commands
     u_x,u_y,u_z,PID_params_trajectory, dr_error = Calc_Pos_Control(r_LVLH_C[:,ii], tii, interp_x, interp_y, interp_z, u_x_thresh, u_y_thresh, u_z_thresh, dt, PID_params_trajectory)    
@@ -1456,7 +1543,7 @@ for ii in range(0,num_datapoints-1):
     v_LVLH_C[:,ii+1] = solver.y[22:25]
     t_plot[:,ii+1] = tii
         
-    # Print results
+    # Print time
     print(f"Time: {tii:.3f}")
     
 
@@ -1466,7 +1553,7 @@ for ii in range(0,num_datapoints-1):
 
 # start_time = time.perf_counter()
 # elapsed_time = time.perf_counter()
-# ii = 0
+# # ii = 0
 # while elapsed_time < t-dt:    
     
 #     tii = dt*(1+ii) # first tii = dt
@@ -1503,8 +1590,8 @@ for ii in range(0,num_datapoints-1):
 #     next_time = start_time + ii * dt
 
 #     # Busy-wait until the next precise moment
-#     while time.perf_counter() < next_time: # note this code is high CPU usage. the "pass" argument keeps the loop running until the the current time is exceeds next_time
-#         pass  # Active waiting for precision
+# #     while time.perf_counter() < next_time: # note this code is high CPU usage. the "pass" argument keeps the loop running until the the current time is exceeds next_time
+# #         pass  # Active waiting for precision
 
 
 
@@ -1562,6 +1649,8 @@ diagnosticsPlt = True
 matplotlibPlt = False
 pybulletPlt = True
 acc = 30 #accelerates the time for the dynamic plotting
+
+
 
 # euler_angs = np.zeros([3,len(qs[0,:])])
 # for ii in range(0,len(qs[0,:])):
@@ -1699,43 +1788,62 @@ ax5 = axs[1, 1]  # Angular Momentum
 ax6 = axs[1, 2]  # Energy Variation
 
 ax1.set_title('Chaser Position, x')
-ax1.plot(t_plot[0,:], r_LVLH_C[0], color='b')
+ax1.plot(t_plot[0,0:-1], r_LVLH_C_star[0], '-',color='y',linewidth=4,label="STM sol")
+# ax1.plot(Traj[:,6], Traj[:,0], '-',color='k',linewidth=4,label="Planned")
+ax1.plot(t_plot[0,:], r_LVLH_C[0], color='cyan', label="Feedback control")
 ax1.grid()
+ax1.legend()
 ax1.set_xlabel('Time (s)')
 ax1.set_ylabel('Chaser Position, x (m)')
 
 ax2.set_title('Chaser Position, y')
-ax2.plot(t_plot[0,:], r_LVLH_C[1], color='r')
-ax2.grid()
+ax2.plot(t_plot[0,0:-1], r_LVLH_C_star[1], '-',color='y',linewidth=4,label="STM sol")
+# ax2.plot(Traj[:,6], Traj[:,1],'-',color='k',linewidth=4,label="Planned")
+ax2.plot(t_plot[0,:], r_LVLH_C[1],'-', color='r', label="Feedback control")
 ax2.set_xlabel('Time (s)')
+ax2.legend()
+ax2.grid()
 ax2.set_ylabel('Chaser Position, y (m)')
 
 ax3.set_title('Chaser Position, z')
-ax3.plot(t_plot[0,:], r_LVLH_C[2], color='k')
+ax3.plot(t_plot[0,0:-1], r_LVLH_C_star[2], '-',color='y',linewidth=4,label="STM sol")
+# ax3.plot(Traj[:,6], Traj[:,2],'-',color='k',linewidth=4,label="Planned")
+ax3.plot(t_plot[0,:], r_LVLH_C[2],'-', color='g', label="Feedback control")
 ax3.grid()
+ax3.legend()
 ax3.set_xlabel('Time (s)')
 ax3.set_ylabel('Chaser Position, z (m)')
 
 ax4.set_title('Chaser Velocity, x')
-ax4.plot(t_plot[0,:], v_LVLH_C[0], color='b')
+ax4.plot(t_plot[0,0:-1], v_LVLH_C_star[0], '-',color='y',linewidth=4,label="STM sol")
+# ax4.plot(Traj[:,6], Traj[:,3],'-',color='k',linewidth=4,label="Planned")
+ax4.plot(t_plot[0,:], v_LVLH_C[0],'-', color='cyan', label="Feedback control")
 ax4.grid()
+ax4.legend()
 ax4.set_xlabel('Time (s)')
 ax4.set_ylabel('Chaser Position, x (m/s)')
 
 ax5.set_title('Chaser Velocity, y')
-ax5.plot(t_plot[0,:], v_LVLH_C[1], color='r')
+ax5.plot(t_plot[0,0:-1], v_LVLH_C_star[1], '-',color='y',linewidth=4,label="STM sol")
+# ax5.plot(Traj[:,6], Traj[:,4],'-',color='k',linewidth=4,label="Planned")
+ax5.plot(t_plot[0,:], v_LVLH_C[1],'-', color='r', label="Feedback control")
 ax5.grid()
+ax5.legend()
 ax5.set_xlabel('Time (s)')
 ax5.set_ylabel('Chaser Position, y (m/s)')
 
 ax6.set_title('Chaser Velocity, z')
-ax6.plot(t_plot[0,:], v_LVLH_C[2], color='k')
+ax6.plot(t_plot[0,0:-1], v_LVLH_C_star[2], '-',color='y',linewidth=4,label="STM sol")
+# ax6.plot(Traj[:,6], Traj[:,5],'-',color='k',linewidth=4,label="Planned")
+ax6.plot(t_plot[0,:], v_LVLH_C[2],'-', color='g', label="Feedback control")
 ax6.grid()
+ax6.legend()
 ax6.set_xlabel('Time (s)')
 ax6.set_ylabel('Chaser Position, z(m/s)')
 
 # Adjust spacing between plots
 plt.subplots_adjust(wspace=0.4, hspace=0.4)
+plt.legend()
 
 
 # this code plots the duration of the different integrators
