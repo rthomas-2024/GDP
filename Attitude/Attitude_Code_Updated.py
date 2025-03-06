@@ -424,8 +424,8 @@ w0 = np.array([0,0.01,0]) #initial angular velocity in the BODY FRAME
 theta0 = np.array([0,59,0]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in BODY FRAME
-   T1 = 0.01*np.sin(0.1*t)
-   T2 = 0.03*np.sin(0.2*t)
+   T1 = 0
+   T2 = 0
    T3 = 0
    return np.array([T1, T2, T3])
 
