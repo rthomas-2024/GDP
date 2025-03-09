@@ -15,7 +15,7 @@
         <visual>
 	        <origin xyz="0 0 0" rpy="0 0 0"/>
             <geometry>
-		        <mesh filename="FULL_GANTRY_FRAME.STL" scale="0.001 0.001 0.001"/>
+		        <mesh filename="GANTRY_FRAME.STL" scale="0.001 0.001 0.001"/>
             </geometry>
             <material name="grey">
                 <color rgba="0.5 0.5 0.5 1"/> 
@@ -34,12 +34,12 @@
 
 	<joint name="yaxis_joint" type="prismatic">
 		
-		<origin xyz="0.3 0.47 -0.4" rpy="0 0 0"/>
+		<origin xyz="0.289 0.4695 -0.19" rpy="0 0 0"/>
 		<parent link="base_link"/>
 		<child link="yaxis_link"/>
 
 		<axis xyz="0 0 1"/>
-		<limit lower="0" upper="1.35" velocity="100" effort="100"/>		
+		<limit lower="0" upper="1.2" velocity="100" effort="100"/>		
 	</joint>
 
 	<link name="yaxis_link">
@@ -66,12 +66,12 @@
 
 	<joint name="zaxis_joint" type="prismatic">
 
-		<origin xyz="0.45 -0.4 0" rpy="0 0 0"/>
+		<origin xyz="0.47 -0.416 -0.007" rpy="0 0 0"/>
 		<parent link="yaxis_link"/>
 		<child link="zaxis_link"/>
 
 		<axis xyz="1 0 0"/>
-		<limit lower="-0.35" upper="0.35" velocity="100" effort="100"/>
+		<limit lower="-0.34" upper="0.34" velocity="100" effort="100"/>
 	</joint>
 
 	<link name="zaxis_link">
@@ -96,21 +96,21 @@
 		</inertial>
 	</link>
 
-	<joint name="gimbal_holder_joint" type="prismatic">
+	<joint name="gimbal_interface_joint" type="prismatic">
 
-		<origin xyz="0.011 0.48 0" rpy="0 0 0"/>
+		<origin xyz="0.004 0.4 0" rpy="0 0 0"/>
 		<parent link="zaxis_link"/>
-		<child link="gimbal_holder_link"/>
+		<child link="gimbal_interface_link"/>
 
 		<axis xyz="0 1 0"/>
-		<limit lower="-0.45" upper="0.47" velocity="100" effort="100"/>
+		<limit lower="-0.39" upper="0.4" velocity="100" effort="100"/>
 	</joint>
 
-	<link name="gimbal_holder_link">
+	<link name="gimbal_interface_link">
 		<visual>
 			<origin xyz="0 0 0" rpy="0 0 0"/>
 			<geometry>
-				<mesh filename="GIMBAL_HOLDER.STL" scale="0.001 0.001 0.001"/>
+				<mesh filename="GIMBAL_INTERFACE.STL" scale="0.001 0.001 0.001"/>
 			</geometry>
 			<material name="blue">
 				<color rgba="0 0 1 1"/>

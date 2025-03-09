@@ -91,7 +91,7 @@ def getCosPitch(C11, C12, yaw):
     return cosPitch
 def getGimbalLockAngles(sinPitch, C22, C32):
     print('GIMBAL LOCK')
-    #can of course directlty find pitch
+    #can of course directly find pitch
     if sinPitch == 1:
         pitch = pi/2
     elif sinPitch == -1:
@@ -223,7 +223,7 @@ def DCMtoEuler(dcm):
     cosPitch = getCosPitch(C11,C12,yaw)
 
     if sinPitch == 1 or sinPitch == -1:
-        #must check for gimbal lock FIRST of course, if found true, wont run the rest of the if
+        #must check for gimbal lock FIRST of course, if found true, wont run the rest of the if statement
         roll, pitch, yaw = getGimbalLockAngles(sinPitch, C22, C32)
 
     elif sinPitch == 0:
@@ -260,7 +260,13 @@ def DCMtoEuler(dcm):
     else:
         print("DCM to Euler error 4")
 
-    
+
+    #correct for Euler angle ambiguity
+    global prevEuler
+    prevRoll, prevPitch, prevYaw = prevEuler
+
+
+    prevEuler = np.array([roll,pitch,yaw])
     return np.array([roll,pitch,yaw])
 
 #CORE FUNCTIONS
@@ -384,9 +390,9 @@ def transformationTesting():
                     [0,1,0],
                     [0,0,1]])
 
-    y = 0
-    p = 0
     r = 0
+    p = 95
+    y = 0
 
     w = 1
     x = 0
@@ -397,19 +403,21 @@ def transformationTesting():
 
     euler = np.array([np.deg2rad(r),np.deg2rad(p),np.deg2rad(y)])
 
-    print(quaternionToDCM(quaternion))
+    print("Initial Euler: " + str(np.rad2deg(euler)))
 
     print(" ")
 
-    print(DCMtoQuaternion(dcm))
-    
-    print(" ")
-
-    print(np.flip(np.rad2deg(DCMtoEuler(dcm))))
-    
-    print(" ")
-
+    print("Conversion to DCM:")
     print(eulerToDCM(euler))
+
+    print(" ")
+
+    print("Conversion to quaternion and back to DCM:")
+    print(quaternionToDCM(DCMtoQuaternion(eulerToDCM(euler))))
+    
+    print(" ")
+
+    print("Final Euler: " + str(np.rad2deg(DCMtoEuler(quaternionToDCM(DCMtoQuaternion(eulerToDCM(euler)))))))
 
 
 
@@ -421,7 +429,7 @@ I = np.array([[1,0,0],
               [0,0,1]]) #inertial matrix
 
 w0 = np.array([0,0.01,0]) #initial angular velocity in the BODY FRAME
-theta0 = np.array([0,59,0]) #initial attitude in degrees (roll, pitch, yaw)
+theta0 = np.array([0,100,0]) #initial attitude in degrees (roll, pitch, yaw)
 
 def T_ext_func(t): #define the thrust over time in BODY FRAME
    T1 = 0
@@ -434,7 +442,7 @@ dt = 0.01 #timestep in seconds
 
 triangleInequality(I) #checks that the object exists
 theta0 = np.deg2rad(theta0) #convert attitude to radians
-
+prevEuler = theta0 #this global parameter is needed to choose which euler set to choose in Euler angle ambiguity cases
 
 
 ###############################################
@@ -482,6 +490,7 @@ T2s = [T_ext_func(t)[1] for t in t_eval]
 T3s = [T_ext_func(t)[2] for t in t_eval]
 
 
+
 ###############################################
 #           FIND ATTITUDE OVER TIME           #
 ###############################################
@@ -498,6 +507,14 @@ plt.xlabel('time (s)')
 plt.ylabel('Angle (deg)')
 plt.legend()
 plt.show()
+
+
+
+###############################################
+#            TESTING AND VALIDATION           #
+###############################################
+
+transformationTesting()
 
 
 
@@ -599,6 +616,7 @@ if matplotlibPlt:
     plt.show()
 
 
+
 ###############################################
 #            PYBULLET VISUALISATION           #
 ###############################################
@@ -612,13 +630,6 @@ if pybulletPlt:
     for i in range(len(t_eval)):
         pybulletPlot(centroid, qs[:,i], dt)
 
-
-
-###############################################
-#            TESTING AND VALIDATION           #
-###############################################
-
-#transformationTesting()
 
 
 ###############################################
