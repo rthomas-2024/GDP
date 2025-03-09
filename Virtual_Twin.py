@@ -201,7 +201,7 @@ ax3.set_xlim(0,tmax)
 #ax3.set_ylim(-1.5, 1.5)
 
 plt.subplots_adjust(wspace=0.25, hspace=0.3)
-plt.show()
+#plt.show()
 
 
 
@@ -209,7 +209,7 @@ plt.show()
 #                  ANIMATION                  #
 ###############################################
 
-animate = True #do we want to animate (control), or move with mouse
+animate = False #do we want to animate (control), or move with mouse
 
 if animate:
     #call the animate function here
@@ -217,4 +217,11 @@ if animate:
 else:
     p.setRealTimeSimulation(1)
     while True:
+        for joint_index in range(7):
+            link_state = p.getLinkState(gantry, joint_index)
+            world_position = link_state[0]
+
+            # Draw a small red sphere at the joint origin
+            p.addUserDebugText("O", world_position, textSize=1, textColorRGB=[1, 0, 0])
+            p.addUserDebugLine(world_position, [world_position[0], world_position[1], world_position[2] + 0.1], [1, 0, 0], 2)
         pass
