@@ -5,7 +5,7 @@
 
 	<joint name="base_joint" type="fixed">
 		<!-- because of how the STL has been loaded in, have to rotate by 90 deg and translate slightly-->
-		<origin xyz="-0.00316703 -0.01282036 -0.00465" rpy="1.570796327 0 1.570796327"/>
+		<origin xyz="0 0 0" rpy="1.570796327 0 1.570796327"/>
 		<parent link="world"/>
 		<child link="base_link"/>
 	</joint>
@@ -13,7 +13,7 @@
 	<!-- links the world to the corner (origin) of the gantry frame-->
     <link name="base_link">
         <visual>
-	        <origin xyz="0 0 0" rpy="0 0 0"/>
+	        <origin xyz="-0.01282036 -0.00465 -0.00316703" rpy="0 0 0"/>
             <geometry>
 		        <mesh filename="GANTRY_FRAME.STL" scale="0.001 0.001 0.001"/>
             </geometry>
@@ -34,7 +34,7 @@
 
 	<joint name="yaxis_joint" type="prismatic">
 		
-		<origin xyz="0.289 0.4695 -0.19" rpy="0 0 0"/>
+		<origin xyz="0.28605 0.515 0.84441" rpy="0 0 0"/>
 		<parent link="base_link"/>
 		<child link="yaxis_link"/>
 
@@ -44,7 +44,7 @@
 
 	<link name="yaxis_link">
 		<visual>
-			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<origin xyz="-0.00995999 -0.05 -0.52094043" rpy="0 0 0"/>
 			<geometry>
 				<mesh filename="YAXIS.STL" scale="0.001 0.001 0.001"/>
 			</geometry>
@@ -66,7 +66,7 @@
 
 	<joint name="zaxis_joint" type="prismatic">
 
-		<origin xyz="0.47 -0.416 -0.007" rpy="0 0 0"/>
+		<origin xyz="0.40184 0.5385 0.042" rpy="0 0 0"/>
 		<parent link="yaxis_link"/>
 		<child link="zaxis_link"/>
 
@@ -76,7 +76,7 @@
 
 	<link name="zaxis_link">
 		<visual>
-			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<origin xyz="-0.00998167 -1.00462 -0.56970911" rpy="0 0 0"/>
 			<geometry>
 				<mesh filename="ZAXIS.STL" scale="0.001 0.001 0.001"/>
 			</geometry>
@@ -98,7 +98,7 @@
 
 	<joint name="gimbal_interface_joint" type="prismatic">
 
-		<origin xyz="0.004 0.4 0" rpy="0 0 0"/>
+		<origin xyz="0 -0.36733 0.117" rpy="0 0 0"/>
 		<parent link="zaxis_link"/>
 		<child link="gimbal_interface_link"/>
 
@@ -108,7 +108,7 @@
 
 	<link name="gimbal_interface_link">
 		<visual>
-			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<origin xyz="-0.00594166 -0.16590892 -0.68670911" rpy="0 0 0"/>
 			<geometry>
 				<mesh filename="GIMBAL_INTERFACE.STL" scale="0.001 0.001 0.001"/>
 			</geometry>
@@ -129,8 +129,7 @@
 	</link>
 
 	<joint name="yaw_axis_joint" type="fixed">
-		<!-- left/right , up/down, forwards/backwards-->
-		<origin xyz="-1.209 -0.692 1.451" rpy="0 1.570796327 0"/>
+		<origin xyz="0.002 -0.055 0" rpy="0 1.570796327 0"/>
 		<parent link="gimbal_interface_link"/>
 		<child link="yaw_axis_link"/>
 
@@ -138,11 +137,11 @@
 
 	<link name="yaw_axis_link">
 		<visual>
-			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<origin xyz="-0.76425525 -0.8042663 -1.21712" rpy="0 0 0"/>
 			<geometry>
 				<mesh filename="YAWAXIS.STL" scale="0.001 0.001 0.001"/>
 			</geometry>
-			<material name="red">
+			<material name="grey">
 			</material>
 		</visual>
 		<collision>
@@ -159,7 +158,7 @@
 
 	<joint name="pitch_axis_joint" type="revolute">
 		<!-- left/right , up/down, forwards/backwards-->
-		<origin xyz="0 0 0" rpy="0 0 0"/>
+		<origin xyz="-0.177 0.0155 -0.0125" rpy="0 0 0"/>
 		<parent link="yaw_axis_link"/>
 		<child link="pitch_axis_link"/>
 
@@ -169,9 +168,38 @@
 
 	<link name="pitch_axis_link">
 		<visual>
-			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<origin xyz="-0.58725525 -0.8197663 -1.20462" rpy="0 0 0"/>
 			<geometry>
 				<mesh filename="PITCHAXIS.STL" scale="0.001 0.001 0.001"/>
+			</geometry>
+			<material name="red">
+			</material>
+		</visual>
+		<collision>
+			<geometry>
+				<box size="1 1 1"/>
+			</geometry>
+		</collision>
+		<inertial>
+			<mass value="1.0"/>
+			<!-- Mass in kilograms -->
+			<inertia ixx="0.1" ixy="0.0" ixz="0.0" iyy="0.1" iyz="0.0" izz="0.1"/>
+		</inertial>
+	</link>
+
+	<joint name="roll_axis_joint" type="fixed">
+		<!-- forwards/backwards, up/down, left/right-->
+		<origin xyz="-0.59 -0.82 -1.2" rpy="0 0 0"/>
+		<parent link="pitch_axis_link"/>
+		<child link="roll_axis_link"/>
+
+	</joint>
+
+	<link name="roll_axis_link">
+		<visual>
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<mesh filename="ROLLAXIS.STL" scale="0.001 0.001 0.001"/>
 			</geometry>
 			<material name="green">
 			</material>
@@ -188,19 +216,19 @@
 		</inertial>
 	</link>
 
-	<joint name="roll_axis_joint" type="fixed">
-		<!-- left/right , up/down, forwards/backwards-->
-		<origin xyz="0 0 0" rpy="0 0 0"/>
-		<parent link="pitch_axis_link"/>
-		<child link="roll_axis_link"/>
+	<joint name="end_eff_interface_joint" type="fixed">
+		<!-- forwards/backwards, up/down, left/right-->
+		<origin xyz="0.57 1 1.253" rpy="0 0 -1.570796327"/>
+		<parent link="roll_axis_link"/>
+		<child link="end_eff_interface_link"/>
 
 	</joint>
 
-	<link name="roll_axis_link">
+	<link name="end_eff_interface_link">
 		<visual>
 			<origin xyz="0 0 0" rpy="0 0 0"/>
 			<geometry>
-				<mesh filename="ROLLAXIS.STL" scale="0.001 0.001 0.001"/>
+				<mesh filename="END_EFF_INTERFACE.STL" scale="0.001 0.001 0.001"/>
 			</geometry>
 			<material name="blue">
 			</material>
