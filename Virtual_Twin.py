@@ -1,3 +1,7 @@
+# THIS VERSION HAS THE OLD CONTROL METHOD AND THE OLD PLOTTING METHOD FOR EACH OF THE AXIS
+
+
+
 ###############################################
 #                   IMPORTS                   #
 ###############################################
@@ -19,23 +23,26 @@ def findJointsToAnimate():
         jointInfo = p.getJointInfo(gantry, i)
         print("Joint index:", jointInfo[0], "Joint name:", jointInfo[1].decode("utf-8"), "Joint type:", jointInfo[2])
 def definePosition(t):
-    yaxisPos = 1.2*np.sin(t)
-    zaxisPos = 0.3*np.sin(t)
-    gimbalHolderPos = 0.4*np.sin(t)
+    yaxisPos = 0
+    zaxisPos = 0
+    gimbalHolderPos = 0
+    pitchAxisPos = 0
+    rollAxisPos = 0
+    endEffInterfacePos = np.pi/2*np.cos(t)
 
-    return yaxisPos, zaxisPos, gimbalHolderPos
+    return yaxisPos, zaxisPos, gimbalHolderPos, pitchAxisPos, rollAxisPos, endEffInterfacePos
 def animateSystem(tmax):
     #get the simulation start time to ensure the simulation only runs for tmax amount of time
     simulationStart = time.time()
 
     while True:
         simTime = time.time() - simulationStart
-
+        
         #end the simulation at tmax
         if simTime >= tmax:
             break
 
-        yaxisPos, zaxisPos, gimbalHolderPos = definePosition(simTime)
+        yaxisPos, zaxisPos, gimbalHolderPos, pitchAxisPos, rollAxisPos, endEffInterfacePos = definePosition(simTime)
 
         #move y-axis in x direction
         p.setJointMotorControl2(bodyUniqueId=gantry,
@@ -49,11 +56,29 @@ def animateSystem(tmax):
                                 controlMode=p.POSITION_CONTROL,
                                 targetPosition=zaxisPos)
 
-        #move gimbal frame in z direction
+        #move gimbal in z direction
         p.setJointMotorControl2(bodyUniqueId=gantry,
                                 jointIndex=gimbalHolderPrismaticJointIndex,
                                 controlMode=p.POSITION_CONTROL,
                                 targetPosition=gimbalHolderPos)
+
+        #rotate the pitch axis in yaw
+        p.setJointMotorControl2(bodyUniqueId=gantry,
+                                jointIndex=pitchAxisRevoluteJointIndex,
+                                controlMode=p.POSITION_CONTROL,
+                                targetPosition=pitchAxisPos)
+
+        #rotate the roll axis in pitch
+        p.setJointMotorControl2(bodyUniqueId=gantry,
+                                jointIndex=rollAxisRevoluteJointIndex,
+                                controlMode=p.POSITION_CONTROL,
+                                targetPosition=rollAxisPos)
+
+        #rotate the end effector interface in roll
+        p.setJointMotorControl2(bodyUniqueId=gantry,
+                                jointIndex=endEffInterfaceContinuousJointIndex,
+                                controlMode=p.POSITION_CONTROL,
+                                targetPosition=endEffInterfacePos)
 
         p.stepSimulation()
         time.sleep(1/240) #max refresh rate of pybullet, not necessarily same timestep as is used for plotting but of course same function
@@ -109,6 +134,26 @@ def getAccns(yaxisVelos, zaxisVelos, gimbalHolderVelos, dt):
     gimbalHolderAccns = np.gradient(gimbalHolderVelos, dt)
     
     return yaxisAccns, zaxisAccns, gimbalHolderAccns
+def getMotorFrequencies(motorControlArray):
+    PREnormal = np.array([1,8,64,256,1024])
+    PRE2 = np.array([1,8,32,64,128,256,1024])
+    Fclock = np.array([8e6,16e6,8e6,16e6,16e6,16e6])
+
+    motorDirection = np.zeros(6)
+    motorFrequency = np.zeros(6)
+
+    for i in range(6):
+        k = 3*i #start of the relevant part of the motor control array for each motor
+        if i==2:
+            motorFrequency[i] = Fclock[i]/(2*motorControlArray[k]*PRE2[motorControlArray[k+2]])
+            motorDirection[i] = motorControlArray[k+1]
+        else:
+            motorFrequency[i] = Fclock[i]/(2*motorControlArray[k]*PREnormal[motorControlArray[k+2]])
+            motorDirection[i] = motorControlArray[k+1]
+
+    return motorFrequency, motorDirection
+
+
 
 ###############################################
 #             VARIABLE DEFINITIONS            #
@@ -135,18 +180,26 @@ findJointsToAnimate()
 yaxisPrismaticJointIndex = 1
 zaxisPrismaticJointIndex = 2
 gimbalHolderPrismaticJointIndex = 3
+pitchAxisRevoluteJointIndex = 5
+rollAxisRevoluteJointIndex = 6
+endEffInterfaceContinuousJointIndex = 7
+
+
 
 ###############################################
 #                 PROCESSING                  #
 ###############################################
 #initialise plotting position arrays
-yaxisPosFull = np.zeros([numSteps])
+yaxisPosFull = np.zeros([numSteps]) #first three will be in mm
 zaxisPosFull = np.zeros([numSteps])
 gimbalHolderPosFull = np.zeros([numSteps])
+pitchAxisPosFull = np.zeros([numSteps]) #last three of course in rad
+rollAxisPosFull = np.zeros([numSteps])
+endEffInterfacePosFull = np.zeros([numSteps])
 
 #fill position plotting arrays
 for i in range(numSteps):
-    yaxisPosFull[i], zaxisPosFull[i], gimbalHolderPosFull[i] = definePosition(t_eval[i])
+    yaxisPosFull[i], zaxisPosFull[i], gimbalHolderPosFull[i], pitchAxisPosFull, rollAxisPosFull, endEffInterfacePosFull = definePosition(t_eval[i])
 
 #the previous loop uses the full movement function, bit of course the movement is constrained by the joint limits
 yaxisPosConstrained, zaxisPosConstrained, gimbalHolderPosConstrained = getConstrainedPos(yaxisPosFull, zaxisPosFull, gimbalHolderPosFull, numSteps)
@@ -209,7 +262,7 @@ plt.subplots_adjust(wspace=0.25, hspace=0.3)
 #                  ANIMATION                  #
 ###############################################
 
-animate = False #do we want to animate (control), or move with mouse
+animate = True #do we want to animate (control), or move with mouse
 
 if animate:
     #call the animate function here
@@ -217,7 +270,7 @@ if animate:
 else:
     p.setRealTimeSimulation(1)
     while True:
-        # for joint_index in range(7):
+        # for joint_index in range(8):
         #     link_state = p.getLinkState(gantry, joint_index)
         #     world_position = link_state[0]
 

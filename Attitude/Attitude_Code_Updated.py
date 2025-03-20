@@ -106,6 +106,25 @@ def getGimbalLockAngles(sinPitch, C22, C32):
     roll = np.arctan2(-C32, C22)
 
     return roll, pitch, yaw
+def getPrincipleInertialMatrix(I):
+    eigenValues, eigenVectors = np.linalg.eig(I)
+
+    sorted_indices = np.argsort(eigenValues)
+    eigenValues = eigenValues[sorted_indices]
+    eigenVectors = eigenVectors[:, sorted_indices]
+
+    principalInertialMatrix = np.array([[eigenValues[0], 0, 0],
+                                       [0, eigenValues[1], 0],
+                                       [0, 0, eigenValues[2]]])
+
+    print(np.linalg.det(eigenVectors))
+
+    #if the determinant is -1, it is left hand not right hand coordinate system, it should be right hand for correct DCM determination
+    if np.linalg.det(eigenVectors) < 0:
+        eigenVectors[:,0] *= -1
+
+    print(np.linalg.det(eigenVectors))
+    return principalInertialMatrix, eigenVectors
 
 #TRANSFORMATION FUNCTIONS
 def quaternionToDCM(beta):
@@ -374,7 +393,6 @@ def plottingFunc(vertices, centroidVec, omegaVec, Hvec, plotComponents):
 
     # #plot body yaw
     # ax.quiver(centroidVec[0], centroidVec[1], centroidVec[2], ..., label = 'Yaw axis (body)', color='b')
-
 def getAttitudes(ts, qs):
     thetas = np.zeros([len(ts), 3])
 
@@ -424,18 +442,31 @@ def transformationTesting():
 ###############################################
 #                   INPUTS                    #
 ###############################################
+principalFrame = True
+principalRotation = np.zeros([3,3])
+
 I = np.array([[1,0,0],
               [0,1,0],
               [0,0,1]]) #inertial matrix
 
-w0 = np.array([0,0.01,0]) #initial angular velocity in the BODY FRAME
+w0 = np.array([0,0.01,0]) #initial angular velocity in the PRINCIPAL BODY FRAME
 theta0 = np.array([0,100,0]) #initial attitude in degrees (roll, pitch, yaw)
 
-def T_ext_func(t): #define the thrust over time in BODY FRAME
+if principalFrame == False:
+    I, principalRotation = getPrincipleInertialMatrix(I)
+    theta0 = principalRotation.T @ theta0
+
+def T_ext_func(t): #define the thrust over time in PRINCIPAL BODY FRAME
    T1 = 0
    T2 = 0
    T3 = 0
-   return np.array([T1, T2, T3])
+
+   torqueVec = np.array([T1, T2, T3])
+
+   if principalFrame == False:
+       torqueVec = principalRotation.T @ torqueVec
+
+   return torqueVec
 
 tspan = np.array([0, 1000]) #spans one minute (start and stop)
 dt = 0.01 #timestep in seconds
