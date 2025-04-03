@@ -1,7 +1,8 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\Attitude"
   ],
-  "SelectedNode": "\\Virtual_Twin_NEW.py",
+  "SelectedNode": "\\Attitude\\Attitude_Code_Updated.py",
   "PreviewInSolutionExplorer": false
 }
